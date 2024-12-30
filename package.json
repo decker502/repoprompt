@@ -1,0 +1,79 @@
+{
+  "name": "repoprompt",
+  "displayName": "RepoPrompt",
+  "description": "将项目结构及文件内容转换为 XML 格式",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "repoprompt.generateXml",
+        "title": "Repo Prompt For LLMs"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "repoprompt.generateXml",
+          "when": "explorerViewletVisible",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RepoPrompt",
+      "properties": {
+        "repoprompt.maxFileSize": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum file size in bytes (default: 1MB)"
+        },
+        "repoprompt.rootTag": {
+          "type": "string",
+          "default": "project",
+          "description": "Root XML tag name"
+        },
+        "repoprompt.includeComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include comments in file content"
+        },
+        "repoprompt.ignorePatterns": {
+          "type": "array",
+          "default": [
+            "node_modules/**",
+            ".git/**",
+            "dist/**",
+            ".vscode/**"
+          ],
+          "description": "Glob patterns for files and folders to ignore"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^16.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^5.x",
+    "@typescript-eslint/parser": "^5.x",
+    "eslint": "^8.x",
+    "typescript": "^4.x"
+  },
+  "dependencies": {
+    "minimatch": "^10.0.1"
+  }
+}
