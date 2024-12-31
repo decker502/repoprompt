@@ -3,7 +3,7 @@ import { ProcessingOptions } from './types';
 
 export class Config {
     static getProcessingOptions(): ProcessingOptions {
-        const config = vscode.workspace.getConfiguration('projectToXml');
+        const config = vscode.workspace.getConfiguration('repoprompt');
         return {
             maxFileSize: config.get<number>('fileSizeThreshold') || 1048576,
             ignorePatterns: config.get<string[]>('ignorePatterns') || [],
@@ -19,7 +19,12 @@ export class Config {
     }
 
     static shouldCopyToClipboard(): boolean {
-        const config = vscode.workspace.getConfiguration('projectToXml');
+        const config = vscode.workspace.getConfiguration('repoprompt');
         return config.get<boolean>('copyToClipboard') || false;
+    }
+
+    static getPrompt(): string | undefined {
+        const config = vscode.workspace.getConfiguration('repoprompt');
+        return config.get<string>('prompt');
     }
 }

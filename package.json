@@ -56,6 +56,11 @@
             ".vscode/**"
           ],
           "description": "Glob patterns for files and folders to ignore"
+        },
+        "repoprompt.prompt": {
+          "type": "string",
+          "default": "",
+          "description": "Default prompt to include in the XML output"
         }
       }
     }
