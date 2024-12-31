@@ -2,22 +2,29 @@ import { ProjectFolder, ProjectFile, XmlChunk, ProcessingOptions } from './types
 
 export class XmlGenerator {
     private options: ProcessingOptions;
-    private readonly CHUNK_SIZE = 1024 * 1024; // 1MB
+    private readonly CHUNK_SIZE: number;
 
     constructor(options: ProcessingOptions) {
         this.options = options;
+        this.CHUNK_SIZE = options.chunkSize;
     }
 
     generateXml(
-        structure: ProjectFolder,
+        structure: ProjectFolder[],
         files: ProjectFile[],
-        prompt?: string
+        prompt?: string,
+        rootPath?: string
     ): XmlChunk[] {
         const chunks: XmlChunk[] = [];
         let currentChunk = '';
         let chunkNumber = 1;
+        const totalFiles = files.length;
+        let filesProcessed = 0;
 
-        // 移除 XML 声明标签，直接从根标签开始
+        // Add XML declaration
+        currentChunk += `<?xml version="1.0" encoding="UTF-8"?>\n`;
+
+        // Start root tag
         currentChunk += `<${this.options.rootTag}>\n`;
 
         // Add prompt if provided
@@ -27,7 +34,15 @@ export class XmlGenerator {
 
         // Add structure
         currentChunk += `  <structure>\n`;
-        currentChunk += this.generateStructureXml(structure, 4);
+        if (rootPath) {
+            currentChunk += `    <root path="${this.escapeXml(rootPath)}">\n`;
+        }
+        structure.forEach(folder => {
+            currentChunk += this.generateStructureXml(folder, rootPath ? 6 : 4);
+        });
+        if (rootPath) {
+            currentChunk += `    </root>\n`;
+        }
         currentChunk += `  </structure>\n`;
 
         // Start files section
@@ -36,6 +51,7 @@ export class XmlGenerator {
         // Process each file
         for (const file of files) {
             const fileXml = this.generateFileXml(file, 4);
+            filesProcessed++;
             
             // Check if adding this file would exceed chunk size
             if (currentChunk.length + fileXml.length > this.CHUNK_SIZE && currentChunk.length > 0) {
@@ -44,11 +60,14 @@ export class XmlGenerator {
                 chunks.push({
                     content: currentChunk,
                     chunkNumber: chunkNumber++,
-                    totalChunks: 0 // Will be updated later
+                    totalChunks: 0, // Will be updated later
+                    filesProcessed,
+                    totalFiles
                 });
 
-                // Start new chunk without XML declaration
-                currentChunk = `<${this.options.rootTag} chunk="${chunkNumber}">\n`;
+                // Start new chunk
+                currentChunk = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+                currentChunk += `<${this.options.rootTag}>\n`;
                 currentChunk += `  <files>\n`;
             }
 
@@ -60,7 +79,9 @@ export class XmlGenerator {
         chunks.push({
             content: currentChunk,
             chunkNumber: chunkNumber,
-            totalChunks: chunkNumber
+            totalChunks: chunkNumber,
+            filesProcessed,
+            totalFiles
         });
 
         // Update totalChunks in all chunks
@@ -103,7 +124,11 @@ export class XmlGenerator {
         // Add content if available
         if (file.content) {
             xml += `${spaces}  <content><![CDATA[\n`;
-            xml += `${spaces}  ${file.content}\n`;
+            xml += `${spaces}  ${this.escapeXml(file.content)}\n`;
+            xml += `${spaces}  ]]></content>\n`;
+        } else if (file.size > this.options.maxFileSize) {
+            xml += `${spaces}  <content><![CDATA[\n`;
+            xml += `${spaces}  File size (${file.size} bytes) exceeds maximum limit (${this.options.maxFileSize} bytes). Only summary is included.\n`;
             xml += `${spaces}  ]]></content>\n`;
         }
 
@@ -113,10 +138,10 @@ export class XmlGenerator {
 
     private escapeXml(text: string): string {
         return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
+            .replace(/&/g, "&")
+            .replace(/</g, "<")
+            .replace(/>/g, ">")
+            .replace(/"/g, "\"")
+            .replace(/'/g, "\'");
     }
-} 
+}
