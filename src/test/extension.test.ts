@@ -63,6 +63,7 @@ describe('Extension Test Suite', () => {
 
             await processor.processFolder(vscode.Uri.file('test'), mockFolder, []);
             expect(mockFolder.files.length).toBe(1);
+            expect(mockFolder.files[0].name).toBe('file1.txt'); // Add this check
             expect(mockFolder.folders.length).toBe(1);
 
             // Check the subfolder content
@@ -152,7 +153,7 @@ describe('Extension Test Suite', () => {
 
             const chunks = generator.generateXml([mockFolder], [mockFolder.files[0]]);
             const xml = chunks[0].content;
-            expect(xml).toContain('<project>');
+            expect(xml).toContain('<project chunk="1">');
             expect(xml).toContain('<structure>');
             expect(xml).toContain('<folder name="test">');
             expect(xml).toContain('<file name="file1.txt"');
@@ -175,6 +176,7 @@ describe('Extension Test Suite', () => {
             chunks.forEach((chunk, index) => {
                 expect(chunk.chunkNumber).toBe(index + 1);
                 expect(chunk.totalChunks).toBe(chunks.length);
+                expect(chunk.content).toContain(`<project chunk="${index + 1}">`);
             });
         });
 
