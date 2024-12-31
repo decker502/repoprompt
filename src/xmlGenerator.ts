@@ -15,6 +15,15 @@ export class XmlGenerator {
         prompt?: string,
         rootPath?: string
     ): XmlChunk[] {
+        if (structure.length === 0 && files.length === 0) {
+            return [{
+                content: `<?xml version="1.0" encoding="UTF-8"?>\n<${this.options.rootTag}>\n</${this.options.rootTag}>`,
+                chunkNumber: 1,
+                totalChunks: 1,
+                filesProcessed: 0,
+                totalFiles: 0
+            }];
+        }
         const chunks: XmlChunk[] = [];
         let currentChunk = '';
         let chunkNumber = 1;
@@ -138,10 +147,10 @@ export class XmlGenerator {
 
     private escapeXml(text: string): string {
         return text
-            .replace(/&/g, "&")
-            .replace(/</g, "<")
-            .replace(/>/g, ">")
-            .replace(/"/g, "\"")
-            .replace(/'/g, "\'");
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
     }
 }

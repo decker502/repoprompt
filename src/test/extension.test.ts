@@ -46,6 +46,21 @@ describe('Extension Test Suite', () => {
                 return [];
             });
 
+            // Mock vscode.workspace.fs.stat
+            jest.spyOn(vscode.workspace.fs, 'stat').mockImplementation(async (uri) => {
+                return {
+                    type: uri.fsPath.endsWith('subfolder') ? vscode.FileType.Directory : vscode.FileType.File,
+                    size: 100,
+                    ctime: 0,
+                    mtime: 0
+                };
+            });
+
+            // Mock vscode.workspace.fs.readFile
+            jest.spyOn(vscode.workspace.fs, 'readFile').mockImplementation(async () => {
+                return Buffer.from('test content');
+            });
+
             await processor.processFolder(vscode.Uri.file('test'), mockFolder, []);
             expect(mockFolder.files.length).toBe(1);
             expect(mockFolder.folders.length).toBe(1);
@@ -71,6 +86,21 @@ describe('Extension Test Suite', () => {
                 vscode.Uri.file('test/file1.txt'),
                 vscode.Uri.file('test/folder1')
             ];
+
+            // Mock vscode.workspace.fs.stat
+            jest.spyOn(vscode.workspace.fs, 'stat').mockImplementation(async (uri) => {
+                return {
+                    type: uri.fsPath.endsWith('folder1') ? vscode.FileType.Directory : vscode.FileType.File,
+                    size: 100,
+                    ctime: 0,
+                    mtime: 0
+                };
+            });
+
+            // Mock vscode.workspace.fs.readFile
+            jest.spyOn(vscode.workspace.fs, 'readFile').mockImplementation(async () => {
+                return Buffer.from('test content');
+            });
 
             const result = await processor.processSelection(uris);
             expect(result.structure.length).toBeGreaterThan(0);
