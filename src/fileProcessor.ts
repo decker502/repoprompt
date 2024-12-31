@@ -127,7 +127,7 @@ export class FileProcessor {
         };
     }
 
-    private async processFolder(
+    public async processFolder(
         uri: vscode.Uri,
         parentFolder: ProjectFolder,
         allFiles: ProjectFile[]
