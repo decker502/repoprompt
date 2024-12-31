@@ -16,6 +16,10 @@
         "includePath": true,
         "recursive": true,
         "fileSizeThreshold": 1048576, // 1MB
+        "chunkSize": 1048576, // 1MB
+        "includeComments": true,
+        "copyToClipboard": false,
+        "outputPath": "${workspaceFolder}/project.xml",
         "ignorePatterns": [
             "**/node_modules/**",
             "**/.git/**",
