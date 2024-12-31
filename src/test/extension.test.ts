@@ -31,15 +31,29 @@ describe('Extension Test Suite', () => {
                 files: []
             };
 
-            // Mock vscode.workspace.fs.readDirectory
-            jest.spyOn(vscode.workspace.fs, 'readDirectory').mockImplementation(async () => [
-                ['file1.txt', vscode.FileType.File],
-                ['subfolder', vscode.FileType.Directory]
-            ]);
+            // Mock vscode.workspace.fs.readDirectory to simulate a folder structure
+            jest.spyOn(vscode.workspace.fs, 'readDirectory').mockImplementation(async (uri) => {
+                if (uri.fsPath.endsWith('test')) {
+                    return [
+                        ['file1.txt', vscode.FileType.File],
+                        ['subfolder', vscode.FileType.Directory]
+                    ];
+                } else if (uri.fsPath.endsWith('subfolder')) {
+                    return [
+                        ['file2.txt', vscode.FileType.File]
+                    ];
+                }
+                return [];
+            });
 
             await processor.processFolder(vscode.Uri.file('test'), mockFolder, []);
             expect(mockFolder.files.length).toBe(1);
             expect(mockFolder.folders.length).toBe(1);
+
+            // Check the subfolder content
+            const subfolder = mockFolder.folders[0];
+            expect(subfolder.files.length).toBe(1);
+            expect(subfolder.files[0].name).toBe('file2.txt');
         });
 
         test('should respect .gitignore patterns', async () => {
