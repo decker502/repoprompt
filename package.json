@@ -9,7 +9,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:repoprompt.generateXml"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -62,18 +64,39 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "jest",
+    "pretest": "npm run compile && npm run lint",
+    "coverage": "jest --coverage"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
+    "@types/jest": "^29.5.14",
     "@types/node": "^16.x",
-    "@types/vscode": "^1.80.0",
-    "@typescript-eslint/eslint-plugin": "^5.x",
-    "@typescript-eslint/parser": "^5.x",
-    "eslint": "^8.x",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^8.56.0",
+    "glob": "^10.4.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
     "typescript": "^4.x"
   },
   "dependencies": {
     "minimatch": "^10.0.1"
-  }
+  },
+  "publisher": "decker502",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/你的用户名/repoprompt.git"
+  },
+  "keywords": [
+    "xml",
+    "project structure",
+    "llm",
+    "gpt",
+    "prompt"
+  ],
+  "license": "MIT"
 }
