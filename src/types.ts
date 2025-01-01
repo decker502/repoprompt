@@ -1,9 +1,9 @@
 export interface ProjectFile {
     name: string;
     path: string;
-    content?: string;
-    summary?: string;
     size: number;
+    summary?: string;
+    content?: string;
 }
 
 export interface ProjectFolder {
@@ -17,11 +17,14 @@ export interface XmlChunk {
     content: string;
     chunkNumber: number;
     totalChunks: number;
+    filesProcessed: number;
+    totalFiles: number;
 }
 
 export interface ProcessingOptions {
     maxFileSize: number;
+    ignorePatterns: string[];
     rootTag: string;
     includeComments: boolean;
-    ignorePatterns: string[];
-} 
+    chunkSize: number;  // 文件处理的分块大小
+}

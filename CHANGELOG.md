@@ -1,9 +1,9 @@
 # Change Log
 
-All notable changes to the "repoprompt" extension will be documented in this file.
+## [0.1.0] - 2024-03-14
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
-## [Unreleased]
-
-- Initial release
+### Added
+- 初始版本发布
+- 支持项目结构和文件内容导出为 XML
+- 支持文件忽略配置
+- 支持大文件处理和自动分块

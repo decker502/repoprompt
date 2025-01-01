@@ -16,8 +16,14 @@ export class XmlGenerator {
         rootPath?: string
     ): XmlChunk[] {
         if (structure.length === 0 && files.length === 0) {
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<${this.options.rootTag} chunk="1">\n`;
+            if (rootPath) {
+                xml += `  <structure>\n    <root path="${this.escapeXml(rootPath)}">\n    </root>\n  </structure>\n`;
+            }
+            xml += `</${this.options.rootTag}>`;
+            
             return [{
-                content: `<?xml version="1.0" encoding="UTF-8"?>\n<${this.options.rootTag}>\n</${this.options.rootTag}>`,
+                content: xml,
                 chunkNumber: 1,
                 totalChunks: 1,
                 filesProcessed: 0,
@@ -30,40 +36,43 @@ export class XmlGenerator {
         const totalFiles = files.length;
         let filesProcessed = 0;
 
-        // Add XML declaration
-        currentChunk += `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        // Only add structure and prompt in the first chunk
+        if (chunkNumber === 1) {
+            // Add XML declaration
+            currentChunk += `<?xml version="1.0" encoding="UTF-8"?>\n`;
 
-        // Start root tag
-        currentChunk += `<${this.options.rootTag}>\n`;
+            // Start root tag with chunk number
+            currentChunk += `<${this.options.rootTag} chunk="${chunkNumber}">\n`;
 
-        // Add prompt if provided
-        if (prompt) {
-            currentChunk += `  <prompt><![CDATA[\n  ${this.escapeXml(prompt)}\n  ]]></prompt>\n`;
+            // Add prompt if provided
+            if (prompt) {
+                currentChunk += `  <prompt><![CDATA[\n  ${this.escapeXml(prompt)}\n  ]]></prompt>\n`;
+            }
+
+            // Add structure
+            currentChunk += `  <structure>\n`;
+            if (rootPath) {
+                currentChunk += `    <root path="${this.escapeXml(rootPath)}">\n`;
+            }
+            structure.forEach(folder => {
+                currentChunk += this.generateStructureXml(folder, rootPath ? 6 : 4);
+            });
+            if (rootPath) {
+                currentChunk += `    </root>\n`;
+            }
+            currentChunk += `  </structure>\n`;
+
+            // Start files section
+            currentChunk += `  <files>\n`;
         }
-
-        // Add structure
-        currentChunk += `  <structure>\n`;
-        if (rootPath) {
-            currentChunk += `    <root path="${this.escapeXml(rootPath)}">\n`;
-        }
-        structure.forEach(folder => {
-            currentChunk += this.generateStructureXml(folder, rootPath ? 6 : 4);
-        });
-        if (rootPath) {
-            currentChunk += `    </root>\n`;
-        }
-        currentChunk += `  </structure>\n`;
-
-        // Start files section
-        currentChunk += `  <files>\n`;
 
         // Process each file
         for (const file of files) {
             const fileXml = this.generateFileXml(file, 4);
             filesProcessed++;
             
-            // Check if adding this file would exceed chunk size
-            if (currentChunk.length + fileXml.length > this.CHUNK_SIZE && currentChunk.length > 0) {
+            // Check if adding this file would exceed chunk size or if we've processed 10 files
+            if (currentChunk.length + fileXml.length > this.CHUNK_SIZE || filesProcessed % 10 === 0) {
                 // Close current chunk
                 currentChunk += `  </files>\n</${this.options.rootTag}>`;
                 chunks.push({
@@ -74,10 +83,14 @@ export class XmlGenerator {
                     totalFiles
                 });
 
-                // Start new chunk
+                // Start new chunk with only files section
                 currentChunk = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-                currentChunk += `<${this.options.rootTag}>\n`;
+                currentChunk += `<${this.options.rootTag} chunk="${chunkNumber}">\n`;
                 currentChunk += `  <files>\n`;
+                
+                // Add the current file to the new chunk
+                currentChunk += fileXml;
+                continue;
             }
 
             currentChunk += fileXml;

@@ -1,103 +1,68 @@
 # RepoPrompt
 
-RepoPrompt 是一个 VSCode 插件，用于将项目结构和文件内容智能整合成适用于大语言模型（如 GPT）的 XML 格式。
+将项目结构及文件内容转换为适用于大语言模型的 XML 格式。
 
-## 功能特点
+## 功能
 
-1. **项目结构与文件整合**
-   - 支持在 VSCode 资源管理器中选择单个或多个文件/文件夹
-   - 递归扫描选中的文件夹，获取完整的项目结构
-   - 将项目结构和文件内容整合到 XML 文件中
-
-2. **智能内容处理**
-   - 自动生成文件内容摘要
-   - 支持大文件处理（超过配置大小的文件只保留摘要）
-   - 自动分块处理超大项目（自动拆分为多个 XML 文件）
-
-3. **灵活的配置选项**
-   - 可配置忽略的文件和文件夹模式
-   - 可自定义 XML 根标签
-   - 可设置最大文件大小限制
-   - 可控制是否包含注释
+- 支持在 VSCode 资源管理器中选择文件或文件夹
+- 递归扫描项目结构
+- 自动处理 .gitignore 规则
+- 支持大文件分块输出
+- 支持文件内容摘要生成
+- 支持配置忽略规则
+- 支持复制到剪贴板
 
 ## 使用方法
 
-1. 在 VS Code 资源管理器中右键点击文件或文件夹
-2. 选择 "Repo Prompt For LLMs" 选项
-3. 输入可选的提示语（将包含在生成的 XML 中）
-4. XML 文件将生成在选中的文件/文件夹所在目录中
+1. 在资源管理器中选择文件或文件夹
+2. 右键选择 "生成项目结构 XML" 或使用快捷键 `Ctrl+Shift+X`
+3. 输入可选的提示语
+4. XML 文件将生成在配置的输出路径中
 
-## 配置选项
+## 配置项
 
-此扩展提供以下设置：
+在 `.vscode/settings.json` 中可以配置以下选项：
 
-* `repoprompt.maxFileSize`: 文件大小限制（字节），默认 1MB
-* `repoprompt.rootTag`: XML 根标签名称，默认 "project"
-* `repoprompt.includeComments`: 是否包含注释，默认 true
-* `repoprompt.ignorePatterns`: 要忽略的文件模式，默认包含：
-  ```json
-  [
-    "node_modules/**",
-    ".git/**",
-    "dist/**",
-    ".vscode/**"
-  ]
-  ```
+- **最大文件大小**：默认 1MB，超过此大小的文件仅包含摘要
+- **根标签名称**：默认 "project"
+- **是否包含注释**：默认 true
+- **忽略模式**：默认忽略 node_modules、.git 等目录
 
-## 输出格式
-
-生成的 XML 文件结构如下：
+## 示例
 
 ```xml
 <project>
   <prompt><![CDATA[
-  用户输入的提示语（如有）
+  请帮我分析这个项目的代码结构。
   ]]></prompt>
   <structure>
-    <folder name="root">
+    <folder name="project">
       <folder name="src">
-        <file name="example.ts" path="src/example.ts" />
+        <file name="file1.py" path="project/src/file1.py" />
+        <file name="file2.txt" path="project/src/file2.txt" />
       </folder>
+      <file name="README.md" path="project/README.md" />
     </folder>
   </structure>
   <files>
-    <file path="src/example.ts">
+    <file path="project/src/file1.py">
       <summary><![CDATA[
-      文件内容摘要...
+      print("Hello, World!")
       ]]></summary>
       <content><![CDATA[
-      完整的文件内容...
+      print("Hello, World!")
       ]]></content>
     </file>
+    <!-- 更多文件内容 -->
   </files>
 </project>
 ```
 
-## 特性
+## 贡献
 
-- 使用相对路径，便于项目迁移
-- 支持 CDATA 包装，确保内容兼容性
-- 智能分块处理大型项目
-- 可配置的文件忽略规则
-- 自动生成文件摘要
+欢迎提交 issue 和 pull request：
+https://github.com/你的用户名/repoprompt
 
-## 要求
+## 许可证
 
-- VS Code 1.80.0 或更高版本
-
-## 已知问题
-
-暂无已知问题。如果您发现任何问题，请在 GitHub 仓库中提交 issue。
-
-## 发布说明
-
-### 0.1.0
-
-- 初始版本发布
-- 支持基本的项目结构和文件内容导出
-- 支持文件忽略配置
-- 支持大文件处理和自动分块
-
----
-
-**享受使用！**
+MIT
