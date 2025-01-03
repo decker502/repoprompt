@@ -1,16 +1,18 @@
 export interface ProjectFile {
     name: string;
     path: string;
-    size: number;
+    size?: number;
     summary?: string;
     content?: string;
+    ignored?: boolean;
 }
 
 export interface ProjectFolder {
     name: string;
     path: string;
-    folders: ProjectFolder[];
     files: ProjectFile[];
+    folders: ProjectFolder[];
+    truncated?: boolean;
 }
 
 export interface XmlChunk {
@@ -23,8 +25,24 @@ export interface XmlChunk {
 
 export interface ProcessingOptions {
     maxFileSize: number;
+    maxTotalSize?: number;
+    maxDepth?: number;
     ignorePatterns: string[];
     rootTag: string;
     includeComments: boolean;
-    chunkSize: number;  // 文件处理的分块大小
+    chunkSize: number;
+    keepEmptyFolders?: boolean;
+    includeEmptyFolders: boolean;
+    prompt?: string;
+}
+
+export interface ProcessingResult {
+    structure: ProjectFolder[];
+    files: ProjectFile[];
+    rootPath: string;
+    prompt?: string;
+    chunkInfo?: {
+        current: number;
+        total: number;
+    };
 }

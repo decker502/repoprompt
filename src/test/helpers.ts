@@ -11,13 +11,7 @@ export const createFileProcessor = (options: ProcessingOptions = {
     chunkSize: 1048576
 }) => new FileProcessor(options);
 
-export const createXmlGenerator = (options: ProcessingOptions = {
-    maxFileSize: 1048576,
-    ignorePatterns: [],
-    rootTag: 'project',
-    includeComments: true,
-    chunkSize: 1048576
-}) => new XmlGenerator(options);
+export const createXmlGenerator = () => new XmlGenerator();
 
 export const mockFs = {
     readDirectory: jest.spyOn(vscode.workspace.fs, 'readDirectory'),

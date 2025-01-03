@@ -14,7 +14,9 @@ const config: Config.InitialOptions = {
   verbose: true,
   moduleNameMapper: {
     '^vscode$': '<rootDir>/src/test/__mocks__/vscode.ts'
-  }
+  },
+  modulePathIgnorePatterns: ["<rootDir>/dist/", "<rootDir>/out/"],
+  testPathIgnorePatterns: ["<rootDir>/out/"]
 };
 
 export default config;

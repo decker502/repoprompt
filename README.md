@@ -23,10 +23,24 @@
 
 在 `.vscode/settings.json` 中可以配置以下选项：
 
-- **最大文件大小**：默认 1MB，超过此大小的文件仅包含摘要
-- **根标签名称**：默认 "project"
-- **是否包含注释**：默认 true
-- **忽略模式**：默认忽略 node_modules、.git 等目录
+```json
+{
+  "repoprompt.maxFileSize": 1048576, // 最大文件大小（字节），默认 1MB
+  "repoprompt.rootTag": "project", // XML 根标签名称
+  "repoprompt.includeComments": true, // 是否包含注释内容
+  "repoprompt.ignorePatterns": [ // 要忽略的文件和文件夹模式
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    "build/**",
+    "*.log"
+  ],
+  "repoprompt.includeContent": true, // 是否包含文件内容
+  "repoprompt.chunkSize": 1048576, // 分块大小（字节），默认 1MB
+  "repoprompt.outputPath": "${workspaceFolder}/project.xml", // 输出文件路径
+  "repoprompt.copyToClipboard": true // 是否自动复制到剪贴板
+}
+```
 
 ## 示例
 

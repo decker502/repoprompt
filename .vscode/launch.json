@@ -10,12 +10,19 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+				"--disable-extensions",
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"${workspaceFolder}/test-workspace"
 			],
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"
 			],
-			"preLaunchTask": "${defaultBuildTask}"
+			"preLaunchTask": "npm: build",
+			"env": {
+				"VSCODE_DEBUG_MODE": "true",
+				"VSCODE_EXTENSION_DIRECTORY": "${workspaceFolder}",
+				"NODE_ENV": "development"
+			}
 		}
 	]
 }

@@ -2,76 +2,149 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileProcessor } from './fileProcessor';
 import { XmlGenerator } from './xmlGenerator';
-import { ProcessingOptions, XmlChunk } from './types';
 import { Config } from './config';
+import { Logger } from './logger';
+import { FileSelector, FileItem } from './fileSelector';
+
+// 声明为模块级变量
+let fileSelector: FileSelector;
 
 export async function activate(context: vscode.ExtensionContext) {
-    const generateXmlCommand = vscode.commands.registerCommand('repoprompt.generateXml', async (uri: vscode.Uri) => {
-        try {
-            // 获取选中的文件或文件夹
-            const uris = await getSelectedUris(uri);
-            if (!uris.length) {
-                throw new Error('请在资源管理器中选择文件或文件夹');
+    try {
+        // 初始化日志工具
+        Logger.initialize();
+        Logger.clear(); // 清除之前的日志
+        Logger.info('=== RepoPrompt 插件启动 ===');
+        Logger.info(`VSCode 版本: ${vscode.version}`);
+        Logger.info(`工作区路径: ${vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '未打开工作区'}`);
+
+        // 创建文件选择器实例
+        fileSelector = new FileSelector(context);
+        Logger.debug('文件选择器已创建');
+
+        // 注册文件选择相关的命令
+        const confirmFileSelectionCommand = vscode.commands.registerCommand('repoprompt.confirmFileSelection', () => {
+            Logger.debug('触发确认选择命令');
+            if (fileSelector) {
+                fileSelector.handleConfirm();
             }
+        });
 
-            // 获取用户输入的提示语
-            const prompt = await vscode.window.showInputBox({
-                prompt: '请输入提示语（可选）',
-                placeHolder: '请帮我分析这个项目的代码结构...'
-            });
+        const cancelFileSelectionCommand = vscode.commands.registerCommand('repoprompt.cancelFileSelection', () => {
+            Logger.debug('触发取消选择命令');
+            if (fileSelector) {
+                fileSelector.handleCancel();
+            }
+        });
 
-            // 处理文件
-            const options = Config.getProcessingOptions();
-            const processor = new FileProcessor(options);
-            const result = await processor.processSelection(uris, prompt);
+        // 注册刷新命令
+        const refreshCommand = vscode.commands.registerCommand('repoprompt.refreshSelection', () => {
+            Logger.debug('执行刷新命令');
+            if (fileSelector) {
+                fileSelector.refresh();
+            }
+        });
 
-            // 生成XML
-            const generator = new XmlGenerator(options);
-            const xmlChunks = generator.generateXml(result.structure, result.files, prompt, result.rootPath);
+        const generateXmlCommand = vscode.commands.registerCommand('repoprompt.generateXml', async (contextUri?: vscode.Uri) => {
+            try {
+                Logger.debug('开始执行 generateXml 命令');
+                let uris: vscode.Uri[] = [];
+                
+                // 如果是从右键菜单触发
+                if (contextUri) {
+                    uris = [contextUri];
+                    Logger.debug('使用右键菜单选择的文件:', uris);
+                } else {
+                    // 使用文件选择器
+                    Logger.debug('检查已选择的文件');
+                    if (!fileSelector) {
+                        Logger.error('文件选择器未初始化');
+                        return;
+                    }
+                    
+                    // 获取已选择的文件
+                    const selectedUris = Array.from(fileSelector.getSelectedItems()).map(path => vscode.Uri.file(path));
+                    Logger.debug('已选择的文件数量:', selectedUris.length);
+                    
+                    if (selectedUris.length === 0) {
+                        Logger.info('未选择任何文件');
+                        vscode.window.showInformationMessage('请先在 RepoPrompt 视图中选择文件或目录');
+                        fileSelector.startSelection();
+                        return;
+                    }
+                    
+                    uris = selectedUris;
+                    Logger.debug('使用已选择的文件:', uris);
+                }
 
-            // 保存文件
-            for (let i = 0; i < xmlChunks.length; i++) {
-                const chunk = xmlChunks[i];
-                const outputPath = getOutputPath(i, xmlChunks.length);
-                await saveXmlFile(outputPath, chunk.content);
+                // 获取用户输入的提示语
+                const prompt = await vscode.window.showInputBox({
+                    prompt: '请输入提示语（可选）',
+                    placeHolder: '请帮我分析这个项目的代码结构...'
+                });
+                Logger.debug('用户输入的提示语:', prompt);
 
-                // 显示进度
+                // 处理文件
+                const options = Config.getProcessingOptions();
+                Logger.debug('处理选项:', options);
+                
+                const processor = new FileProcessor(options);
+                Logger.info(`开始处理 ${uris.length} 个文件/文件夹`);
+                Logger.debug('已选择的文件:', uris);
+                const result = await processor.processSelection(uris);
+                Logger.debug('处理结果:', {
+                    structureCount: result.structure.length,
+                    filesCount: result.files.length
+                });
+
+                // 生成XML
+                const xmlContent = XmlGenerator.generateXml(result);
+                const outputPath = getOutputPath(0, 1);
+                Logger.debug('输出路径:', outputPath);
+                
+                await saveXmlFile(outputPath, xmlContent);
+                Logger.info(`已保存 XML 文件到: ${outputPath}`);
+
+                // 显示完成信息
                 vscode.window.showInformationMessage(
-                    `已处理 ${chunk.filesProcessed}/${chunk.totalFiles} 个文件 (${chunk.chunkNumber}/${chunk.totalChunks})`
+                    `已处理 ${result.files.length} 个文件`
                 );
+
+                // 复制到剪贴板
+                if (Config.shouldCopyToClipboard()) {
+                    await vscode.env.clipboard.writeText(xmlContent);
+                    Logger.info('已复制 XML 内容到剪贴板');
+                    vscode.window.showInformationMessage('XML内容已复制到剪贴板');
+                }
+
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                Logger.error('生成 XML 时出错:', error);
+                vscode.window.showErrorMessage(`生成XML时出错: ${errorMessage}`);
             }
+        });
 
-            // 复制到剪贴板
-            if (Config.shouldCopyToClipboard() && xmlChunks.length === 1) {
-                await vscode.env.clipboard.writeText(xmlChunks[0].content);
-                vscode.window.showInformationMessage('XML内容已复制到剪贴板');
-            }
+        // 注册切换选择状态的命令
+        const toggleSelectionCommand = vscode.commands.registerCommand('repoprompt.toggleSelection', (item: FileItem) => {
+            Logger.debug('切换选择状态:', item.uri.fsPath);
+            fileSelector.toggleSelection(item);
+        });
 
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            vscode.window.showErrorMessage(`生成XML时出错: ${errorMessage}`);
-        }
-    });
+        // 注册所有命令到context.subscriptions
+        context.subscriptions.push(
+            refreshCommand,
+            generateXmlCommand,
+            toggleSelectionCommand,
+            confirmFileSelectionCommand,
+            cancelFileSelectionCommand
+        );
 
-    context.subscriptions.push(generateXmlCommand);
-}
-
-async function getSelectedUris(contextUri?: vscode.Uri): Promise<vscode.Uri[]> {
-    // 1. 首先检查右键菜单上下文
-    if (contextUri) {
-        return [contextUri];
+        Logger.info('命令注册完成');
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        Logger.error('插件激活失败:', error);
+        vscode.window.showErrorMessage(`插件激活失败: ${errorMessage}`);
     }
-
-    // 2. 显示目录选择对话框
-    const selectedUris = await vscode.window.showOpenDialog({
-        canSelectFiles: false,
-        canSelectFolders: true,
-        canSelectMany: true,
-        openLabel: '选择目录'
-    });
-
-    // 3. 返回用户选择的目录
-    return selectedUris || [];
 }
 
 function getOutputPath(chunkIndex: number, totalChunks: number): string {
@@ -98,7 +171,7 @@ async function saveXmlFile(filePath: string, content: string): Promise<void> {
         try {
             await vscode.workspace.fs.createDirectory(vscode.Uri.file(directory));
         } catch (error) {
-            console.log('Directory already exists or cannot be created:', error);
+            Logger.error('创建目录失败:', error);
         }
 
         // 写入文件

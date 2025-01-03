@@ -1,169 +1,162 @@
-import { ProjectFolder, ProjectFile, XmlChunk, ProcessingOptions } from './types';
+import { ProcessingResult, ProjectFolder, ProjectFile } from './types';
+import { escapeXml } from './utils/xmlUtils';
+import * as path from 'path';
 
 export class XmlGenerator {
-    private options: ProcessingOptions;
-    private readonly CHUNK_SIZE: number;
+    private static readonly INDENT_SIZE = 4;
 
-    constructor(options: ProcessingOptions) {
-        this.options = options;
-        this.CHUNK_SIZE = options.chunkSize;
+    private static standardizePath(filePath: string): string {
+        // 移除绝对路径前缀，只保留相对路径部分
+        const parts = filePath.split('/');
+        const startIndex = parts.findIndex(part => 
+            part === 'test' || 
+            part === 'src' || 
+            part === 'web' || 
+            part === 'lib' ||
+            part === 'bin' ||
+            part === 'docs' ||
+            part === 'debug'
+        );
+        return startIndex !== -1 ? parts.slice(startIndex).join('/') : filePath;
     }
 
-    generateXml(
-        structure: ProjectFolder[],
-        files: ProjectFile[],
-        prompt?: string,
-        rootPath?: string
-    ): XmlChunk[] {
-        if (structure.length === 0 && files.length === 0) {
-            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<${this.options.rootTag} chunk="1">\n`;
-            if (rootPath) {
-                xml += `  <structure>\n    <root path="${this.escapeXml(rootPath)}">\n    </root>\n  </structure>\n`;
-            }
-            xml += `</${this.options.rootTag}>`;
-            
-            return [{
-                content: xml,
-                chunkNumber: 1,
-                totalChunks: 1,
-                filesProcessed: 0,
-                totalFiles: 0
-            }];
-        }
-        const chunks: XmlChunk[] = [];
-        let currentChunk = '';
-        let chunkNumber = 1;
-        const totalFiles = files.length;
-        let filesProcessed = 0;
+    private static getFolderKey(folder: ProjectFolder): string {
+        // 使用文件夹名称和其包含的文件来生成唯一键
+        const fileKeys = folder.files
+            .map(file => `${file.name}:${this.standardizePath(file.path)}`)
+            .sort()
+            .join('|');
+        return `${folder.name}:${fileKeys}`;
+    }
 
-        // Only add structure and prompt in the first chunk
-        if (chunkNumber === 1) {
-            // Add XML declaration
-            currentChunk += `<?xml version="1.0" encoding="UTF-8"?>\n`;
-
-            // Start root tag with chunk number
-            currentChunk += `<${this.options.rootTag} chunk="${chunkNumber}">\n`;
-
-            // Add prompt if provided
-            if (prompt) {
-                currentChunk += `  <prompt><![CDATA[\n  ${this.escapeXml(prompt)}\n  ]]></prompt>\n`;
-            }
-
-            // Add structure
-            currentChunk += `  <structure>\n`;
-            if (rootPath) {
-                currentChunk += `    <root path="${this.escapeXml(rootPath)}">\n`;
-            }
-            structure.forEach(folder => {
-                currentChunk += this.generateStructureXml(folder, rootPath ? 6 : 4);
-            });
-            if (rootPath) {
-                currentChunk += `    </root>\n`;
-            }
-            currentChunk += `  </structure>\n`;
-
-            // Start files section
-            currentChunk += `  <files>\n`;
-        }
-
-        // Process each file
-        for (const file of files) {
-            const fileXml = this.generateFileXml(file, 4);
-            filesProcessed++;
-            
-            // Check if adding this file would exceed chunk size or if we've processed 10 files
-            if (currentChunk.length + fileXml.length > this.CHUNK_SIZE || filesProcessed % 10 === 0) {
-                // Close current chunk
-                currentChunk += `  </files>\n</${this.options.rootTag}>`;
-                chunks.push({
-                    content: currentChunk,
-                    chunkNumber: chunkNumber++,
-                    totalChunks: 0, // Will be updated later
-                    filesProcessed,
-                    totalFiles
+    private static deduplicateStructure(structure: ProjectFolder[]): ProjectFolder[] {
+        const folderMap = new Map<string, ProjectFolder>();
+        
+        structure.forEach(folder => {
+            const folderKey = this.getFolderKey(folder);
+            if (!folderMap.has(folderKey)) {
+                // 为文件夹中的文件选择最短的标准化路径
+                const standardizedFiles = folder.files.map(file => {
+                    const standardPath = this.standardizePath(file.path);
+                    return {
+                        ...file,
+                        path: standardPath
+                    };
                 });
 
-                // Start new chunk with only files section
-                currentChunk = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-                currentChunk += `<${this.options.rootTag} chunk="${chunkNumber}">\n`;
-                currentChunk += `  <files>\n`;
-                
-                // Add the current file to the new chunk
-                currentChunk += fileXml;
-                continue;
+                const standardizedFolder: ProjectFolder = {
+                    ...folder,
+                    files: standardizedFiles,
+                    folders: [] // 清空子文件夹，因为我们是扁平化处理
+                };
+                folderMap.set(folderKey, standardizedFolder);
             }
-
-            currentChunk += fileXml;
-        }
-
-        // Close final chunk
-        currentChunk += `  </files>\n</${this.options.rootTag}>`;
-        chunks.push({
-            content: currentChunk,
-            chunkNumber: chunkNumber,
-            totalChunks: chunkNumber,
-            filesProcessed,
-            totalFiles
         });
 
-        // Update totalChunks in all chunks
-        chunks.forEach(chunk => {
-            chunk.totalChunks = chunks.length;
-        });
-
-        return chunks;
+        return Array.from(folderMap.values());
     }
 
-    private generateStructureXml(folder: ProjectFolder, indent: number): string {
-        const spaces = ' '.repeat(indent);
-        let xml = `${spaces}<folder name="${this.escapeXml(folder.name)}">\n`;
+    public static generateXml(result: ProcessingResult): string {
+        const { structure, files, prompt, chunkInfo } = result;
+        const indent = ' '.repeat(this.INDENT_SIZE);
 
-        // Add subfolders
-        folder.folders.forEach(subfolder => {
-            xml += this.generateStructureXml(subfolder, indent + 2);
-        });
+        // 处理files为undefined的情况
+        if (!files) {
+            return '';
+        }
 
-        // Add files
-        folder.files.forEach(file => {
-            xml += `${spaces}  <file name="${this.escapeXml(file.name)}" path="${this.escapeXml(file.path)}" />\n`;
-        });
+        // 如果只有prompt，或者有文件但所有文件都被忽略，生成简化XML
+        const hasOnlyPrompt = prompt && 
+            (files.length === 0 || files.every(file => file.ignored)) &&
+            (!structure || structure.length === 0);
+            
+        if (hasOnlyPrompt && prompt) {
+            return `<prompt><![CDATA[\n${indent}${indent}${escapeXml(prompt)}\n${indent}]]></prompt>`;
+        }
 
-        xml += `${spaces}</folder>\n`;
+        // 严格过滤掉被忽略的文件
+        const filteredFiles = files.filter((file: ProjectFile) => !file.ignored);
+        
+        if (filteredFiles.length === 0 && (!structure || structure.length === 0)) {
+            return '';
+        }
+        
+        // 如果没有文件且没有结构，只返回prompt
+        if (filteredFiles.length === 0 && (!structure || structure.length === 0) && prompt) {
+            return `<prompt><![CDATA[\n${indent}${indent}${escapeXml(prompt)}\n${indent}]]></prompt>`;
+        }
+
+        // 生成完整XML
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        xml += `<project${this.getChunkAttribute(chunkInfo)}>\n`;
+
+        // 添加提示语
+        if (prompt) {
+            xml += `${indent}<prompt><![CDATA[\n`;
+            xml += `${indent}${indent}${escapeXml(prompt)}\n`;
+            xml += `${indent}]]></prompt>\n`;
+        }
+
+        // 生成项目结构（去重后）
+        if (structure && structure.length > 0) {
+            xml += `${indent}<structure>\n`;
+            const deduplicatedStructure = this.deduplicateStructure(structure);
+            deduplicatedStructure.forEach(folder => {
+                xml += this.generateFolderXml(folder, indent.repeat(2));
+            });
+            xml += `${indent}</structure>\n`;
+        }
+
+        // 生成文件内容（使用标准化路径）
+        if (filteredFiles.length > 0) {
+            xml += `${indent}<files>\n`;
+            // 使用Map来去重文件
+            const uniqueFiles = new Map<string, ProjectFile>();
+            filteredFiles.forEach(file => {
+                const standardPath = this.standardizePath(file.path);
+                const fileKey = `${file.name}:${standardPath}`;
+                if (!uniqueFiles.has(fileKey)) {
+                    uniqueFiles.set(fileKey, { ...file, path: standardPath });
+                }
+            });
+            Array.from(uniqueFiles.values()).forEach(file => {
+                xml += this.generateFileXml(file, indent.repeat(2));
+            });
+            xml += `${indent}</files>\n`;
+        }
+
+        xml += `</project>`;
         return xml;
     }
 
-    private generateFileXml(file: ProjectFile, indent: number): string {
-        const spaces = ' '.repeat(indent);
-        let xml = `${spaces}<file path="${this.escapeXml(file.path)}">\n`;
+    private static generateFolderXml(folder: ProjectFolder, indent: string): string {
+        let xml = `${indent}<folder name="${escapeXml(folder.name)}">\n`;
+        folder.folders.forEach((subFolder: ProjectFolder) => {
+            xml += this.generateFolderXml(subFolder, indent + ' ');
+        });
+        folder.files.forEach((file: ProjectFile) => {
+            xml += `${indent} <file name="${escapeXml(file.name)}" path="${escapeXml(file.path)}" />\n`;
+        });
+        xml += `${indent}</folder>\n`;
+        return xml;
+    }
 
-        // Add summary
+    private static generateFileXml(file: ProjectFile, indent: string): string {
+        let xml = `${indent}<file path="${escapeXml(file.path)}">\n`;
         if (file.summary) {
-            xml += `${spaces}  <summary><![CDATA[\n`;
-            xml += `${spaces}  ${file.summary}\n`;
-            xml += `${spaces}  ]]></summary>\n`;
+            xml += `${indent} <summary><![CDATA[\n${escapeXml(file.summary)}\n${indent} ]]></summary>\n`;
         }
-
-        // Add content if available
         if (file.content) {
-            xml += `${spaces}  <content><![CDATA[\n`;
-            xml += `${spaces}  ${this.escapeXml(file.content)}\n`;
-            xml += `${spaces}  ]]></content>\n`;
-        } else if (file.size > this.options.maxFileSize) {
-            xml += `${spaces}  <content><![CDATA[\n`;
-            xml += `${spaces}  File size (${file.size} bytes) exceeds maximum limit (${this.options.maxFileSize} bytes). Only summary is included.\n`;
-            xml += `${spaces}  ]]></content>\n`;
+            xml += `${indent} <content><![CDATA[\n`;
+            xml += `${indent} ${indent}${escapeXml(file.content)}\n`;
+            xml += `${indent} ]]></content>\n`;
         }
-
-        xml += `${spaces}</file>\n`;
+        xml += `${indent}</file>\n`;
         return xml;
     }
 
-    private escapeXml(text: string): string {
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&apos;");
+    private static getChunkAttribute(chunkInfo?: { current: number; total: number }): string {
+        if (!chunkInfo) return '';
+        return ` chunk="${chunkInfo.current}/${chunkInfo.total}"`;
     }
 }

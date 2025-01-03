@@ -1,23 +1,70 @@
 {
   "name": "repoprompt",
   "displayName": "RepoPrompt",
-  "description": "将项目结构及文件内容转换为 XML 格式",
-  "version": "0.1.0",
+  "description": "Export repository structure and content to XML format for LLM prompts",
+  "version": "0.0.1",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
   ],
   "activationEvents": [
+    "onView:repoPromptFileSelector",
     "onCommand:repoprompt.generateXml"
   ],
-  "main": "./dist/extension.js",
+  "main": "dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "repoPromptExplorer",
+          "title": "RepoPrompt",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "repoPromptExplorer": [
+        {
+          "id": "repoPromptFileSelector",
+          "name": "文件选择",
+          "type": "tree",
+          "icon": "resources/icon.svg",
+          "contextualTitle": "RepoPrompt 文件选择"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "repoprompt.generateXml",
-        "title": "生成项目结构 XML"
+        "title": "Export to XML",
+        "category": "RepoPrompt",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "repoprompt.refreshSelection",
+        "title": "刷新文件列表",
+        "category": "RepoPrompt",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "repoprompt.confirmFileSelection",
+        "title": "确认选择",
+        "category": "RepoPrompt",
+        "icon": "$(check)"
+      },
+      {
+        "command": "repoprompt.cancelFileSelection",
+        "title": "取消选择",
+        "category": "RepoPrompt",
+        "icon": "$(x)"
+      },
+      {
+        "command": "repoprompt.toggleSelection",
+        "title": "切换选择状态",
+        "category": "RepoPrompt",
+        "icon": "$(check-all)"
       }
     ],
     "menus": {
@@ -26,111 +73,54 @@
           "command": "repoprompt.generateXml",
           "group": "navigation"
         }
-      ]
-    },
-    "configuration": {
-      "title": "RepoPrompt",
-      "properties": {
-        "repoprompt.maxFileSize": {
-          "type": "number",
-          "default": 1048576,
-          "description": "最大文件大小（字节）"
-        },
-        "repoprompt.rootTag": {
-          "type": "string",
-          "default": "project",
-          "description": "XML 根标签名称"
-        },
-        "repoprompt.includeComments": {
-          "type": "boolean",
-          "default": true,
-          "description": "是否包含注释内容"
-        },
-        "repoprompt.ignorePatterns": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "node_modules/**",
-            ".git/**",
-            "dist/**",
-            "build/**",
-            "*.log"
-          ],
-          "description": "要忽略的文件和文件夹模式"
-        },
-        "repoprompt.includeContent": {
-          "type": "boolean",
-          "default": true,
-          "description": "是否包含文件内容"
-        },
-        "repoprompt.chunkSize": {
-          "type": "number",
-          "default": 1,
-          "description": "分块大小（字节）"
-        },
-        "repoprompt.outputPath": {
-          "type": "string",
-          "default": "${workspaceFolder}/project.xml",
-          "description": "输出文件路径"
-        },
-        "repoprompt.copyToClipboard": {
-          "type": "boolean",
-          "default": true,
-          "description": "是否自动复制到剪贴板"
+      ],
+      "view/title": [
+        {
+          "command": "repoprompt.refreshSelection",
+          "when": "view == repoPromptFileSelector",
+          "group": "navigation"
         }
-      }
-    },
-    "keybindings": [
-      {
-        "command": "repoprompt.generateXml",
-        "key": "ctrl+shift+x",
-        "mac": "cmd+shift+x",
-        "when": "explorerViewletVisible"
-      }
-    ]
+      ],
+      "view/item/context": [
+        {
+          "command": "repoprompt.generateXml",
+          "when": "view == repoPromptFileSelector",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run build",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "pretest": "npm run compile",
+    "lint": "eslint src",
     "test": "jest",
-    "pretest": "npm run compile && npm run lint",
-    "coverage": "jest --coverage",
-    "clean": "rm -rf dist coverage",
-    "build": "tsc -p ./"
-  },
-  "devDependencies": {
-    "@types/jest": "^29.5.14",
-    "@types/node": "^16.18.122",
-    "@types/vscode": "^1.96.0",
-    "@typescript-eslint/eslint-plugin": "^8.19.0",
-    "@typescript-eslint/parser": "^8.19.0",
-    "@vscode/test-electron": "^2.4.1",
-    "eslint": "^8.57.1",
-    "glob": "^10.4.5",
-    "jest": "^29.7.0",
-    "minimatch": "^10.0.1",
-    "ts-jest": "^29.2.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.2"
+    "clean": "rimraf dist",
+    "build": "npm run clean && npm run esbuild",
+    "esbuild": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --minify=false --bundle=true"
   },
   "dependencies": {
-    "minimatch": "^10.0.1"
+    "minimatch": "^5.1.2"
   },
-  "publisher": "decker502",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/你的用户名/repoprompt.git"
-  },
-  "keywords": [
-    "xml",
-    "project structure",
-    "llm",
-    "gpt",
-    "prompt"
-  ],
-  "license": "MIT"
+  "devDependencies": {
+    "@jest/types": "^29.6.3",
+    "@types/jest": "^29.5.14",
+    "@types/minimatch": "^5.1.2",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.8",
+    "esbuild": "^0.19.11",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
 }

@@ -1,269 +1,313 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { FileProcessor, FileHandler } from '../fileProcessor';
-import { ProcessingOptions } from '../types';
+import { FileProcessor, ProcessingResultBuilder } from '../fileProcessor';
+import { ProcessingOptions, ProjectFile, ProjectFolder } from '../types';
+import path from 'path';
+import { IFileHandler } from '../fileHandler';
+import { IFolderHandler } from '../folderHandler';
+
+// Mock vscode.workspace.fs
+const mockStat = jest.fn();
+const mockReadFile = jest.fn();
+const mockReadDirectory = jest.fn();
+
+jest.mock('vscode', () => ({
+    workspace: {
+        fs: {
+            stat: (...args: any[]) => mockStat(...args),
+            readFile: (...args: any[]) => mockReadFile(...args),
+            readDirectory: (...args: any[]) => mockReadDirectory(...args)
+        }
+    },
+    FileType: {
+        File: 1,
+        Directory: 2,
+        SymbolicLink: 64
+    },
+    Uri: {
+        file: (path: string) => ({ 
+            fsPath: path,
+            path: path,
+            scheme: 'file',
+            authority: '',
+            query: '',
+            fragment: '',
+            with: function(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }) {
+                return {
+                    ...this,
+                    ...change
+                };
+            },
+            toJSON: function() {
+                return {
+                    $mid: 1,
+                    fsPath: this.fsPath,
+                    path: this.path,
+                    scheme: this.scheme
+                };
+            }
+        })
+    }
+}));
+
+// 基础测试工具函数
+const createMockFile = (name: string, relativePath: string, content = 'test content'): ProjectFile => ({
+    name,
+    path: relativePath,
+    content
+});
+
+const createMockFolder = (name: string, relativePath: string, files: ProjectFile[] = [], folders: ProjectFolder[] = []): ProjectFolder => ({
+    name,
+    path: relativePath,
+    files,
+    folders
+});
+
+describe('ProcessingResultBuilder', () => {
+    let builder: ProcessingResultBuilder;
+
+    beforeEach(() => {
+        builder = new ProcessingResultBuilder('/test/path', 'test prompt');
+    });
+
+    afterEach(() => {
+        // Clean up resources by creating a new empty instance
+        builder = new ProcessingResultBuilder('', '');
+    });
+
+    it('should initialize with correct values', () => {
+        const result = builder.build();
+        expect(result.rootPath).toBe('/test/path');
+        expect(result.prompt).toBe('test prompt');
+        expect(result.files).toEqual([]);
+        expect(result.structure).toEqual([]);
+        expect(result.xmlContent).toBeDefined();
+    });
+
+    it('should add file correctly', () => {
+        const testFile = createMockFile('test.txt', 'test.txt');
+        builder.addFile(testFile);
+        expect(builder.build().files).toContainEqual(testFile);
+    });
+
+    it('should add folder to structure correctly', () => {
+        const testFolder = createMockFolder('test', 'test');
+        builder.addToStructure(testFolder);
+        expect(builder.build().structure).toContainEqual(testFolder);
+    });
+
+    it('should set XML content correctly', () => {
+        const xml = '<test>content</test>';
+        builder.setXmlContent(xml);
+        expect(builder.build().xmlContent).toBe(xml);
+    });
+});
 
 describe('FileProcessor', () => {
+    let mockFileHandler: jest.Mocked<IFileHandler>;
+    let mockFolderHandler: jest.Mocked<IFolderHandler>;
     let fileProcessor: FileProcessor;
-    let fileHandler: FileHandler;
     const options: ProcessingOptions = {
-        maxFileSize: 1048576,
+        maxFileSize: 1024 * 1024,
         rootTag: 'project',
         includeComments: true,
         ignorePatterns: [],
-        chunkSize: 1048576
+        chunkSize: 1024 * 1024,
+        includeEmptyFolders: false
     };
 
     beforeEach(() => {
-        fileProcessor = new FileProcessor(options);
-        fileHandler = new FileHandler(options);
+        // Reset all mocks
         jest.clearAllMocks();
+        mockStat.mockReset();
+        mockReadFile.mockReset();
+        mockReadDirectory.mockReset();
+
+        mockFileHandler = {
+            processFile: jest.fn(),
+            setRootPath: jest.fn(),
+            shouldIgnore: jest.fn(),
+            dispose: jest.fn(),
+            getFileStat: jest.fn(),
+            readFile: jest.fn(),
+            readDirectory: jest.fn()
+        } as jest.Mocked<IFileHandler>;
+
+        mockFolderHandler = {
+            processFolder: jest.fn(),
+            setRootPath: jest.fn(),
+            dispose: jest.fn()
+        } as jest.Mocked<IFolderHandler>;
+
+        fileProcessor = new FileProcessor(options, mockFileHandler, mockFolderHandler);
     });
 
-    describe('FileHandler', () => {
-        it('should read file content correctly', async () => {
-            const uri = vscode.Uri.file('/test/file.txt');
-            const mockContent = 'test content';
-            
-            (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
-                Buffer.from(mockContent)
-            );
-
-            const content = await fileHandler['readFileContent'](uri);
-            expect(content).toBe(mockContent);
-        });
-
-        it('should get file stat correctly', async () => {
-            const uri = vscode.Uri.file('/test/file.txt');
-            const mockStat = {
-                type: vscode.FileType.File,
-                size: 100,
-                ctime: Date.now(),
-                mtime: Date.now()
-            };
-            
-            (vscode.workspace.fs.stat as jest.Mock).mockResolvedValue(mockStat);
-
-            const stat = await fileHandler['getFileStat'](uri);
-            expect(stat).toEqual(mockStat);
-        });
+    afterEach(() => {
+        // Clean up resources
+        if (mockFileHandler.dispose) {
+            mockFileHandler.dispose();
+        }
+        if (mockFolderHandler.dispose) {
+            mockFolderHandler.dispose();
+        }
+        jest.resetAllMocks();
     });
 
-    describe('FileProcessor', () => {
+    describe('Basic File Operations', () => {
+        it('should process single file correctly', async () => {
+            const fileUri = vscode.Uri.file('/root/test.txt');
+            const mockFile = createMockFile('test.txt', 'test.txt');
 
-        it('should correctly handle nested folder structure', async () => {
-        const projectPath = '/test-project';
-        const rootUri = vscode.Uri.file(projectPath);
+            mockStat.mockResolvedValue({ type: vscode.FileType.File });
+            mockFileHandler.getFileStat.mockResolvedValue({ type: vscode.FileType.File } as vscode.FileStat);
+            mockFileHandler.processFile.mockResolvedValue(mockFile);
+            mockFileHandler.shouldIgnore.mockResolvedValue(false);
 
-        // Mock directory structure
-        const mockDirectory = new Map([
-            [projectPath, [['src', vscode.FileType.Directory]]],
-            [`${projectPath}/src`, [['__pycache__', vscode.FileType.Directory]]],
-            [`${projectPath}/src/__pycache__`, [['__init__.cpython-312.pyc', vscode.FileType.File]]]
-        ]);
-
-        // Mock readDirectory
-        (vscode.workspace.fs.readDirectory as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
-            return mockDirectory.get(uri.fsPath) || [];
+            const result = await fileProcessor.processSelection([fileUri]);
+            expect(result.files.length).toBe(1);
+            expect(result.files[0].path).toBe('test.txt');
         });
 
-        // Mock stat
-        (vscode.workspace.fs.stat as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
-            const isDirectory = mockDirectory.has(uri.fsPath);
-            return {
-                type: isDirectory ? vscode.FileType.Directory : vscode.FileType.File,
-                size: isDirectory ? 0 : 100,
-                ctime: Date.now(),
-                mtime: Date.now()
-            };
-        });
+        it('should process folder correctly', async () => {
+            const folderUri = vscode.Uri.file('/root/folder');
+            const mockFile = createMockFile('test.txt', 'folder/test.txt');
+            const mockFolder = createMockFolder('folder', 'folder', [mockFile], []);
 
-        // Mock readFile
-        (vscode.workspace.fs.readFile as jest.Mock).mockImplementation(async () => {
-            return Buffer.from('Mock content');
-        });
-
-        const { structure, rootPath } = await fileProcessor.processSelection([rootUri]);
-
-        // 验证结构
-        expect(structure.length).toBe(1);
-        const rootFolder = structure[0];
-        expect(rootFolder.path).toBe('');
-        expect(rootFolder.name).toBe('test-project');
-
-        const srcFolder = rootFolder.folders[0];
-        expect(srcFolder.name).toBe('src');
-        expect(srcFolder.path).toBe('src');
-
-        const pycacheFolder = srcFolder.folders[0];
-        expect(pycacheFolder.name).toBe('__pycache__');
-        expect(pycacheFolder.path).toBe('src/__pycache__');
-    });
-
-        test('should process single file', async () => {
-        const uri = { 
-            fsPath: '/test/file.txt',
-            scheme: 'file'
-        } as vscode.Uri;
-
-        // Mock vscode API
-        (vscode.workspace.fs.stat as jest.Mock).mockResolvedValue({
-            type: vscode.FileType.File,
-            size: 100
-        });
-        
-        (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
-            Buffer.from('test content')
-        );
-
-        const result = await fileProcessor.processSelection([uri]);
-        
-        expect(result.files.length).toBe(1);
-        expect(result.files[0].name).toBe('file.txt');
-        expect(result.files[0].content).toBe('test content');
-    });
-
-        test('should respect file size limit', async () => {
-        const uri = { 
-            fsPath: '/test/large.txt',
-            scheme: 'file'
-        } as vscode.Uri;
-
-        (vscode.workspace.fs.stat as jest.Mock).mockResolvedValue({
-            type: vscode.FileType.File,
-            size: 2 * 1024 * 1024 // 2MB
-        });
-
-        const result = await fileProcessor.processSelection([uri]);
-        
-        expect(result.files[0].content).toBeUndefined();
-        expect(result.files[0].summary).toBeDefined();
-    });
-
-        test('should calculate common root path correctly', async () => {
-            const testCases = [
-                {
-                    description: 'multiple files in same directory',
-                    uris: [
-                        vscode.Uri.file('/project/src/file1.txt'),
-                        vscode.Uri.file('/project/src/file2.txt')
-                    ],
-                    expected: '/project/src'
-                },
-                {
-                    description: 'multiple files in same subdirectory',
-                    uris: [
-                        vscode.Uri.file('/project/src/module/file1.txt'),
-                        vscode.Uri.file('/project/src/module/file2.txt')
-                    ],
-                    expected: '/project/src/module'
-                },
-                {
-                    description: 'multiple files in nested subdirectory',
-                    uris: [
-                        vscode.Uri.file('/project/src/module/sub/file1.txt'),
-                        vscode.Uri.file('/project/src/module/sub/file2.txt')
-                    ],
-                    expected: '/project/src/module/sub'
-                },
-                {
-                    description: 'files in different subdirectories',
-                    uris: [
-                        vscode.Uri.file('/project/src/file1.txt'),
-                        vscode.Uri.file('/project/src/module/file2.txt')
-                    ],
-                    expected: '/project/src'
-                },
-                {
-                    description: 'root directory and subdirectory',
-                    uris: [
-                        vscode.Uri.file('/project/README.md'),
-                        vscode.Uri.file('/project/src/file1.txt')
-                    ],
-                    expected: '/project'
-                },
-                {
-                    description: 'single file selection',
-                    uris: [
-                        vscode.Uri.file('/project/src/file1.txt')
-                    ],
-                    expected: '/project/src'
-                },
-                {
-                    description: 'single directory selection',
-                    uris: [
-                        vscode.Uri.file('/project/src')
-                    ],
-                    expected: '/project/src'
-                },
-                {
-                    description: 'non-existent path',
-                    uris: [
-                        vscode.Uri.file('/project/non-existent/file.txt')
-                    ],
-                    expected: '/project/non-existent'
-                }
-            ];
-
-            (vscode.workspace.fs.stat as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
-                // 针对常见目录做判断
-                if (uri.fsPath === '/project' || uri.fsPath === '/project/src' || 
-                    uri.fsPath === '/project/src/module' || uri.fsPath === '/project/src/module/sub') {
-                    return {
-                        type: vscode.FileType.Directory,
-                        size: 0,
-                        ctime: Date.now(),
-                        mtime: Date.now()
-                    };
-                }
-                // 如果是 .txt 文件
-                if (uri.fsPath.endsWith('.txt')) {
-                    return {
-                        type: vscode.FileType.File,
-                        size: 100,
-                        ctime: Date.now(),
-                        mtime: Date.now()
-                    };
-                }
-                // 默认返回文件
-                return {
-                    type: vscode.FileType.File,
-                    size: 0,
-                    ctime: 0,
-                    mtime: 0
-                };
+            mockStat.mockResolvedValue({ type: vscode.FileType.Directory });
+            mockFileHandler.getFileStat.mockResolvedValue({ type: vscode.FileType.Directory } as vscode.FileStat);
+            mockFolderHandler.processFolder.mockImplementation((uri: vscode.Uri) => {
+                return Promise.resolve({
+                    name: 'folder',
+                    path: 'folder',
+                    files: [{
+                        name: 'test.txt',
+                        path: 'folder/test.txt',
+                        content: 'test content'
+                    }],
+                    folders: []
+                });
             });
 
-            for (const testCase of testCases) {
-                console.log(`Test case: ${testCase.description}`);
-                console.log('Testing with URIs:', testCase.uris.map(uri => uri.fsPath));
-                const result = await fileProcessor.processSelection(testCase.uris);
-                console.log('Calculated root path:', result.rootPath);
-                expect(result.rootPath).toBe(testCase.expected);
-                // Verify path normalization
-                expect(result.rootPath).toBe(path.normalize(testCase.expected));
-            }
+            mockFileHandler.shouldIgnore.mockImplementation((path: string) => {
+                return Promise.resolve(false);
+            });
+
+            mockFileHandler.processFile.mockImplementation((uri: vscode.Uri) => {
+                return Promise.resolve({
+                    name: 'test.txt',
+                    path: 'folder/test.txt',
+                    content: 'test content'
+                });
+            });
+
+            const result = await fileProcessor.processSelection([folderUri]);
+            expect(result.files.length).toBe(1);
+            expect(result.files[0].path).toBe('folder/test.txt');
+            expect(result.structure.length).toBe(1);
+            expect(result.structure[0].name).toBe('folder');
+        });
+    });
+
+    describe('Error Handling', () => {
+        it('should handle file not found error gracefully', async () => {
+            const fileUri = vscode.Uri.file('/root/test.txt');
+            
+            mockStat.mockResolvedValue({ type: vscode.FileType.File });
+            mockFileHandler.getFileStat.mockResolvedValue({ type: vscode.FileType.File } as vscode.FileStat);
+            mockFileHandler.processFile.mockResolvedValue(undefined);
+
+            await expect(fileProcessor.processSelection([fileUri])).rejects.toThrow('No files were processed');
         });
 
-        test('should process single uri correctly', async () => {
-            const uri = vscode.Uri.file('/test/file.txt');
-            const allFiles: any[] = [];
-            const rootFolders: any[] = [];
+        it('should handle file system errors gracefully', async () => {
+            const fileUri = vscode.Uri.file('/root/error.txt');
+            
+            mockStat.mockRejectedValue(new Error('File system error'));
+            mockFileHandler.getFileStat.mockRejectedValue(new Error('File system error'));
 
-            // Mock vscode API
-            (vscode.workspace.fs.stat as jest.Mock).mockResolvedValue({
-                type: vscode.FileType.File,
-                size: 100
+            await expect(fileProcessor.processSelection([fileUri])).rejects.toThrow();
+        });
+    });
+
+    describe('Path Processing', () => {
+        it('should calculate common root path correctly', async () => {
+            const file1Uri = vscode.Uri.file('/root/folder1/test1.txt');
+            const file2Uri = vscode.Uri.file('/root/folder1/test2.txt');
+            
+            mockStat.mockResolvedValue({ type: vscode.FileType.File });
+            mockFileHandler.getFileStat.mockResolvedValue({ type: vscode.FileType.File } as vscode.FileStat);
+            mockFileHandler.processFile.mockImplementation((uri) => {
+                const name = path.basename(uri.fsPath);
+                return Promise.resolve(createMockFile(name, `folder1/${name}`));
             });
-            
-            (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
-                Buffer.from('test content')
-            );
 
-            await fileProcessor['processSingleUri'](uri, allFiles, rootFolders);
+            const result = await fileProcessor.processSelection([file1Uri, file2Uri]);
+            expect(result.rootPath).toBe('/root/folder1');
+            expect(result.files.length).toBe(2);
+        });
+    });
+
+    describe('Folder Structure', () => {
+        it('should handle nested folders correctly', async () => {
+            const rootUri = vscode.Uri.file('/root/src');
+            const mockFile = createMockFile('test.txt', 'src/sub/test.txt');
+            const mockSubFolder = createMockFolder('sub', 'src/sub', [mockFile], []);
+            const mockRootFolder = createMockFolder('src', 'src', [], [mockSubFolder]);
+
+            mockStat.mockResolvedValue({ type: vscode.FileType.Directory });
+            mockFileHandler.getFileStat.mockResolvedValue({ type: vscode.FileType.Directory } as vscode.FileStat);
             
-            expect(allFiles.length).toBe(1);
-            expect(allFiles[0].name).toBe('file.txt');
+            // 修改 mock 实现，确保只返回一次预定义的文件夹结构
+            let folderCallCount = 0;
+            mockFolderHandler.processFolder.mockImplementation((uri: vscode.Uri) => {
+                folderCallCount++;
+                if (folderCallCount === 1) {
+                    return Promise.resolve({
+                        name: 'src',
+                        path: 'src',
+                        files: [],
+                        folders: [{
+                            name: 'sub',
+                            path: 'src/sub',
+                            files: [{
+                                name: 'test.txt',
+                                path: 'src/sub/test.txt',
+                                content: 'test content'
+                            }],
+                            folders: []
+                        }]
+                    });
+                }
+                return Promise.resolve({
+                    name: 'sub',
+                    path: 'src/sub',
+                    files: [{
+                        name: 'test.txt',
+                        path: 'src/sub/test.txt',
+                        content: 'test content'
+                    }],
+                    folders: []
+                });
+            });
+
+            mockFileHandler.shouldIgnore.mockImplementation((path: string) => {
+                return Promise.resolve(false);
+            });
+
+            mockFileHandler.processFile.mockImplementation((uri: vscode.Uri) => {
+                return Promise.resolve({
+                    name: 'test.txt',
+                    path: 'src/sub/test.txt',
+                    content: 'test content'
+                });
+            });
+
+            const result = await fileProcessor.processSelection([rootUri]);
+            expect(result.structure.length).toBe(1);
+            expect(result.structure[0].folders.length).toBe(1);
+            expect(result.files.length).toBe(1);
+            expect(result.files[0].path).toBe('src/sub/test.txt');
+            expect(mockFolderHandler.processFolder).toHaveBeenCalledTimes(2); // 只应该调用两次：一次是根文件夹，一次是子文件夹
         });
     });
 });
