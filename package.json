@@ -2,7 +2,8 @@
   "name": "repoprompt",
   "displayName": "RepoPrompt",
   "description": "Export repository structure and content to XML format for LLM prompts",
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "publisher": "decker502",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -116,5 +117,9 @@
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decker502/repoprompt.git"
   }
 }
