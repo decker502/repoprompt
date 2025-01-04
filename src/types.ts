@@ -1,3 +1,5 @@
+import * as vscode from 'vscode';
+
 export interface ProjectFile {
     name: string;
     path: string;
@@ -5,6 +7,8 @@ export interface ProjectFile {
     summary?: string;
     content?: string;
     ignored?: boolean;
+    isSelected?: boolean;
+    type?: vscode.FileType;
 }
 
 export interface ProjectFolder {
@@ -13,6 +17,9 @@ export interface ProjectFolder {
     files: ProjectFile[];
     folders: ProjectFolder[];
     truncated?: boolean;
+    isSelected?: boolean;
+    isExpanded?: boolean;
+    type?: vscode.FileType;
 }
 
 export interface XmlChunk {

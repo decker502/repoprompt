@@ -3,21 +3,11 @@ import { escapeXml } from './utils/xmlUtils';
 import * as path from 'path';
 
 export class XmlGenerator {
-    private static readonly INDENT_SIZE = 4;
+    private static readonly INDENT_SIZE = 2;
 
     private static standardizePath(filePath: string): string {
-        // 移除绝对路径前缀，只保留相对路径部分
-        const parts = filePath.split('/');
-        const startIndex = parts.findIndex(part => 
-            part === 'test' || 
-            part === 'src' || 
-            part === 'web' || 
-            part === 'lib' ||
-            part === 'bin' ||
-            part === 'docs' ||
-            part === 'debug'
-        );
-        return startIndex !== -1 ? parts.slice(startIndex).join('/') : filePath;
+        // 直接返回原始路径，不做截断处理
+        return filePath;
     }
 
     private static getFolderKey(folder: ProjectFolder): string {
@@ -31,126 +21,315 @@ export class XmlGenerator {
 
     private static deduplicateStructure(structure: ProjectFolder[]): ProjectFolder[] {
         const folderMap = new Map<string, ProjectFolder>();
+        const seenPaths = new Set<string>();
+        const filePathMap = new Map<string, string>(); // 用于追踪文件的规范路径
         
-        structure.forEach(folder => {
-            const folderKey = this.getFolderKey(folder);
-            if (!folderMap.has(folderKey)) {
-                // 为文件夹中的文件选择最短的标准化路径
-                const standardizedFiles = folder.files.map(file => {
-                    const standardPath = this.standardizePath(file.path);
-                    return {
-                        ...file,
-                        path: standardPath
-                    };
-                });
-
-                const standardizedFolder: ProjectFolder = {
-                    ...folder,
-                    files: standardizedFiles,
-                    folders: [] // 清空子文件夹，因为我们是扁平化处理
-                };
-                folderMap.set(folderKey, standardizedFolder);
+        // 递归处理文件夹
+        const processFolder = (folder: ProjectFolder, parentPath: string = ''): void => {
+            const fullPath = parentPath ? `${parentPath}/${folder.name}` : folder.name;
+            
+            // 如果这个路径已经处理过，直接返回
+            if (seenPaths.has(fullPath)) {
+                return;
             }
+            seenPaths.add(fullPath);
+            
+            // 更新当前文件夹的路径
+            folder.path = fullPath;
+            
+            // 创建或更新文件夹
+            if (!folderMap.has(fullPath)) {
+                folderMap.set(fullPath, {
+                    name: folder.name,
+                    path: fullPath,
+                    files: [],
+                    folders: []
+                });
+            }
+            
+            const currentFolder = folderMap.get(fullPath)!;
+            
+            // 处理文件
+            if (folder.files) {
+                folder.files.forEach(file => {
+                    const filePath = `${fullPath}/${file.name}`;
+                    // 检查文件是否已经在其他位置出现过
+                    if (!filePathMap.has(file.name) || filePathMap.get(file.name) === filePath) {
+                        filePathMap.set(file.name, filePath);
+                        if (!currentFolder.files!.some(f => f.path === filePath)) {
+                            currentFolder.files!.push({
+                                ...file,
+                                path: filePath
+                            });
+                        }
+                    }
+                });
+            }
+            
+            // 递归处理子文件夹
+            if (folder.folders) {
+                folder.folders.forEach(subFolder => {
+                    processFolder(subFolder, fullPath);
+                });
+            }
+        };
+        
+        // 处理所有根文件夹，先按路径长度排序，确保最短路径先处理
+        const sortedStructure = [...structure].sort((a, b) => 
+            (a.path || a.name).split('/').length - (b.path || b.name).split('/').length
+        );
+        sortedStructure.forEach(folder => {
+            processFolder(folder);
         });
+        
+        // 递归检查文件夹是否为空
+        const isEmptyFolder = (folder: ProjectFolder): boolean => {
+            if (folder.files && folder.files.length > 0) {
+                return false;
+            }
+            if (!folder.folders || folder.folders.length === 0) {
+                return true;
+            }
+            // 如果所有子文件夹都是空的，则当前文件夹也是空的
+            return folder.folders.every(isEmptyFolder);
+        };
+        
+        // 递归移除空文件夹
+        const removeEmptyFolders = (folder: ProjectFolder): ProjectFolder | null => {
+            if (!folder.folders) {
+                folder.folders = [];
+            }
+            
+            // 递归处理子文件夹
+            folder.folders = folder.folders
+                .map(subFolder => removeEmptyFolders(subFolder))
+                .filter((subFolder): subFolder is ProjectFolder => subFolder !== null);
+            
+            // 如果当前文件夹是空的，返回 null
+            return isEmptyFolder(folder) ? null : folder;
+        };
+        
+        // 重建文件夹树结构
+        const result: ProjectFolder[] = [];
+        const processedPaths = new Set<string>();
+        
+        // 按路径长度排序，确保父文件夹先处理
+        const sortedPaths = Array.from(folderMap.keys()).sort((a, b) => 
+            a.split('/').length - b.split('/').length
+        );
+        
+        for (const path of sortedPaths) {
+            const folder = folderMap.get(path)!;
+            
+            // 如果父路径已经处理过，跳过
+            if (Array.from(processedPaths).some(p => path.startsWith(`${p}/`))) {
+                continue;
+            }
+            
+            processedPaths.add(path);
+            
+            // 找到所有直接子文件夹
+            folder.folders = sortedPaths
+                .filter(p => p.startsWith(`${path}/`) && p.split('/').length === path.split('/').length + 1)
+                .map(p => folderMap.get(p)!)
+                .sort((a, b) => a.name.localeCompare(b.name));
+            
+            // 只添加顶层文件夹到结果中
+            if (!path.includes('/')) {
+                const processedFolder = removeEmptyFolders(folder);
+                if (processedFolder) {
+                    result.push(processedFolder);
+                }
+            }
+        }
+        
+        return result.sort((a, b) => a.name.localeCompare(b.name));
+    }
 
-        return Array.from(folderMap.values());
+    private static cleanCdata(content: string): string {
+        if (!content) {
+            return '';
+        }
+        
+        // 移除已有的 CDATA 标记
+        content = content.replace(/<!\[CDATA\[|\]\]>/g, '');
+        
+        // 处理内容中的 ]]> 序列
+        content = content.replace(/\]\]>/g, ']]&gt;');
+        
+        return content;
+    }
+
+    private static generateFolderXml(folder: ProjectFolder, indent: string = ''): string {
+        let xml = '';
+        const indentStr = indent;
+
+        // 添加文件夹标签
+        xml += `${indentStr}<folder name="${escapeXml(folder.name)}">\n`;
+
+        // 添加文件
+        if (folder.files && folder.files.length > 0) {
+            folder.files.forEach(file => {
+                xml += `${indentStr}  <file name="${escapeXml(file.name)}" path="${escapeXml(file.path)}" />\n`;
+            });
+        }
+
+        // 递归处理子文件夹
+        if (folder.folders && folder.folders.length > 0) {
+            folder.folders.forEach(subFolder => {
+                xml += this.generateFolderXml(subFolder, indentStr + '  ');
+            });
+        }
+
+        xml += `${indentStr}</folder>\n`;
+        return xml;
+    }
+
+    private static generateFilesXml(files: ProjectFile[], indent: string = ''): string {
+        let xml = '';
+        const indentStr = indent;
+
+        xml += `${indentStr}<files>\n`;
+        files.forEach(file => {
+            xml += `${indentStr}  <file name="${escapeXml(file.name)}" path="${escapeXml(file.path)}">\n`;
+            if (file.summary) {
+                const cleanedSummary = this.cleanCdata(file.summary);
+                xml += `${indentStr}    <summary><![CDATA[${cleanedSummary}]]></summary>\n`;
+            }
+            // 始终添加 content 标签，即使内容为空
+            const cleanedContent = this.cleanCdata(file.content || '');
+            xml += `${indentStr}    <content><![CDATA[${cleanedContent}]]></content>\n`;
+            xml += `${indentStr}  </file>\n`;
+        });
+        xml += `${indentStr}</files>\n`;
+
+        return xml;
     }
 
     public static generateXml(result: ProcessingResult): string {
-        const { structure, files, prompt, chunkInfo } = result;
+        let xml = '';
         const indent = ' '.repeat(this.INDENT_SIZE);
 
-        // 处理files为undefined的情况
-        if (!files) {
-            return '';
-        }
-
-        // 如果只有prompt，或者有文件但所有文件都被忽略，生成简化XML
-        const hasOnlyPrompt = prompt && 
-            (files.length === 0 || files.every(file => file.ignored)) &&
-            (!structure || structure.length === 0);
+        // 先去重并处理文件夹结构
+        if (result.structure && result.structure.length > 0) {
+            // 收集并更新所有文件路径
+            const pathMap = new Map<string, string>();
+            result.structure.forEach(folder => {
+                this.collectFilePaths(folder, '', pathMap);
+            });
             
-        if (hasOnlyPrompt && prompt) {
-            return `<prompt><![CDATA[\n${indent}${indent}${escapeXml(prompt)}\n${indent}]]></prompt>`;
+            // 更新 result.files 中的文件路径
+            if (result.files) {
+                result.files.forEach(file => {
+                    const fileName = file.name;
+                    // 在结构中查找文件的完整路径
+                    const findFilePath = (folders: ProjectFolder[]): string | undefined => {
+                        for (const folder of folders) {
+                            if (folder.files?.some(f => f.name === fileName)) {
+                                return `${folder.path}/${fileName}`;
+                            }
+                            if (folder.folders) {
+                                const path = findFilePath(folder.folders);
+                                if (path) return path;
+                            }
+                        }
+                        return undefined;
+                    };
+                    
+                    const newPath = findFilePath(result.structure);
+                    if (newPath) {
+                        file.path = newPath;
+                    }
+                });
+            }
+
+            // 去重处理
+            result.structure = this.deduplicateStructure(result.structure);
         }
 
-        // 严格过滤掉被忽略的文件
-        const filteredFiles = files.filter((file: ProjectFile) => !file.ignored);
-        
-        if (filteredFiles.length === 0 && (!structure || structure.length === 0)) {
-            return '';
-        }
-        
-        // 如果没有文件且没有结构，只返回prompt
-        if (filteredFiles.length === 0 && (!structure || structure.length === 0) && prompt) {
-            return `<prompt><![CDATA[\n${indent}${indent}${escapeXml(prompt)}\n${indent}]]></prompt>`;
+        // 添加项目标签
+        if (result.chunkInfo) {
+            xml += `<project chunk="${result.chunkInfo.current}/${result.chunkInfo.total}">\n`;
+        } else {
+            xml += '<project>\n';
         }
 
-        // 生成完整XML
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-        xml += `<project${this.getChunkAttribute(chunkInfo)}>\n`;
-
-        // 添加提示语
-        if (prompt) {
+        // 添加提示信息
+        if (result.prompt) {
+            const cleanPrompt = this.cleanCdata(result.prompt);
             xml += `${indent}<prompt><![CDATA[\n`;
-            xml += `${indent}${indent}${escapeXml(prompt)}\n`;
+            cleanPrompt.split('\n').forEach(line => {
+                xml += `${indent}${indent}${line}\n`;
+            });
             xml += `${indent}]]></prompt>\n`;
         }
 
-        // 生成项目结构（去重后）
-        if (structure && structure.length > 0) {
+        // 添加文件夹结构
+        if (result.structure && result.structure.length > 0) {
             xml += `${indent}<structure>\n`;
-            const deduplicatedStructure = this.deduplicateStructure(structure);
-            deduplicatedStructure.forEach(folder => {
-                xml += this.generateFolderXml(folder, indent.repeat(2));
+            result.structure.forEach(folder => {
+                xml += this.generateFolderXml(folder, indent + indent);
             });
             xml += `${indent}</structure>\n`;
         }
 
-        // 生成文件内容（使用标准化路径）
-        if (filteredFiles.length > 0) {
-            xml += `${indent}<files>\n`;
-            // 使用Map来去重文件
-            const uniqueFiles = new Map<string, ProjectFile>();
-            filteredFiles.forEach(file => {
-                const standardPath = this.standardizePath(file.path);
-                const fileKey = `${file.name}:${standardPath}`;
-                if (!uniqueFiles.has(fileKey)) {
-                    uniqueFiles.set(fileKey, { ...file, path: standardPath });
-                }
-            });
-            Array.from(uniqueFiles.values()).forEach(file => {
-                xml += this.generateFileXml(file, indent.repeat(2));
-            });
-            xml += `${indent}</files>\n`;
+        // 添加文件列表
+        if (result.files && result.files.length > 0) {
+            xml += this.generateFilesXml(result.files, indent);
         }
 
-        xml += `</project>`;
+        xml += '</project>\n';
         return xml;
     }
 
-    private static generateFolderXml(folder: ProjectFolder, indent: string): string {
-        let xml = `${indent}<folder name="${escapeXml(folder.name)}">\n`;
-        folder.folders.forEach((subFolder: ProjectFolder) => {
-            xml += this.generateFolderXml(subFolder, indent + ' ');
-        });
-        folder.files.forEach((file: ProjectFile) => {
-            xml += `${indent} <file name="${escapeXml(file.name)}" path="${escapeXml(file.path)}" />\n`;
-        });
-        xml += `${indent}</folder>\n`;
-        return xml;
+    private static collectFilePaths(folder: ProjectFolder, parentPath: string, pathMap: Map<string, string>): void {
+        const currentPath = parentPath ? `${parentPath}/${folder.name}` : folder.name;
+        
+        // 更新当前文件夹的路径
+        folder.path = currentPath;
+        
+        // 收集当前文件夹中的文件路径
+        if (folder.files) {
+            folder.files.forEach(file => {
+                const fullPath = `${currentPath}/${file.name}`;
+                // 只在路径不存在时更新
+                if (!pathMap.has(file.path)) {
+                    pathMap.set(file.path, fullPath);
+                    file.path = fullPath;
+                }
+            });
+        }
+        
+        // 递归处理子文件夹，避免重复处理相同路径的文件夹
+        if (folder.folders) {
+            const processedPaths = new Set<string>();
+            folder.folders = folder.folders.filter(subFolder => {
+                const subPath = `${currentPath}/${subFolder.name}`;
+                if (processedPaths.has(subPath)) {
+                    return false;
+                }
+                processedPaths.add(subPath);
+                // 更新子文件夹的路径
+                subFolder.path = subPath;
+                this.collectFilePaths(subFolder, currentPath, pathMap);
+                return true;
+            });
+        }
     }
 
     private static generateFileXml(file: ProjectFile, indent: string): string {
-        let xml = `${indent}<file path="${escapeXml(file.path)}">\n`;
+        let xml = `${indent}<file name="${file.name}" path="${file.path}">\n`;
+        
+        // 添加摘要
         if (file.summary) {
-            xml += `${indent} <summary><![CDATA[\n${escapeXml(file.summary)}\n${indent} ]]></summary>\n`;
+            const cleanSummary = this.cleanCdata(file.summary);
+            xml += `${indent}${indent}<summary><![CDATA[${cleanSummary}]]></summary>\n`;
         }
-        if (file.content) {
-            xml += `${indent} <content><![CDATA[\n`;
-            xml += `${indent} ${indent}${escapeXml(file.content)}\n`;
-            xml += `${indent} ]]></content>\n`;
-        }
+
+        // 添加内容
+        const cleanContent = this.cleanCdata(file.content || '');
+        xml += `${indent}${indent}<content><![CDATA[${cleanContent}]]></content>\n`;
+        
         xml += `${indent}</file>\n`;
         return xml;
     }

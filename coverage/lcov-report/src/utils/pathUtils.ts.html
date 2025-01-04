@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">14.81% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>18/27</span>
+                <span class='fraction'>4/27</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">31.25% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>5/16</span>
+                <span class='fraction'>0/16</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/3</span>
+                <span class='fraction'>0/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">14.81% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>18/27</span>
+                <span class='fraction'>4/27</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line medium'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -123,50 +123,50 @@
 <a name='L58'></a><a href='#L58'>58</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
@@ -179,51 +179,51 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import * as path from 'path';
 &nbsp;
-export function normalizePath(inputPath: string): string {
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (!inputPath || inputPath.trim() === '') {
+export function <span class="fstat-no" title="function not covered" >normalizePath(</span>inputPath: string): string {
+<span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (!inputPath || inputPath.trim() === '') {</span>
 <span class="cstat-no" title="statement not covered" >        return '';</span>
     }
     
     // 处理相对路径
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (inputPath.startsWith('./')) {
+<span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (inputPath.startsWith('./')) {</span>
 <span class="cstat-no" title="statement not covered" >        inputPath = inputPath.slice(2);</span>
     }
     
     // 规范化路径并统一使用正斜杠
-    let normalized = path.normalize(inputPath).replace(/\\/g, '/');
+    let normalized = <span class="cstat-no" title="statement not covered" >path.normalize(inputPath).replace(/\\/g, '/');</span>
     
     // 移除开头的斜杠
-    normalized = normalized.replace(/^[\/]+/, '');
+<span class="cstat-no" title="statement not covered" >    normalized = normalized.replace(/^[\/]+/, '');</span>
     
     // 移除末尾的斜杠（如果是目录路径）
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (normalized.endsWith('/') &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >normalized.length &gt; 1)</span> {
+<span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (normalized.endsWith('/') &amp;&amp; normalized.length &gt; 1) {</span>
 <span class="cstat-no" title="statement not covered" >        normalized = normalized.slice(0, -1);</span>
     }
     
-    return normalized;
+<span class="cstat-no" title="statement not covered" >    return normalized;</span>
 }
 &nbsp;
-export function getRelativePath(rootPath: string, targetPath: string): string {
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (!rootPath || !targetPath) {
+export function <span class="fstat-no" title="function not covered" >getRelativePath(</span>rootPath: string, targetPath: string): string {
+<span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (!rootPath || !targetPath) {</span>
 <span class="cstat-no" title="statement not covered" >        return '';</span>
     }
     
-    const normalizedRoot = normalizePath(rootPath);
-    const normalizedTarget = normalizePath(targetPath);
+    const normalizedRoot = <span class="cstat-no" title="statement not covered" >normalizePath(rootPath);</span>
+    const normalizedTarget = <span class="cstat-no" title="statement not covered" >normalizePath(targetPath);</span>
     
     // 如果路径相同，返回空字符串
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (normalizedRoot === normalizedTarget) {
+<span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (normalizedRoot === normalizedTarget) {</span>
 <span class="cstat-no" title="statement not covered" >        return '';</span>
     }
     
     // 计算相对于当前工作目录的路径
-    const cwd = process.cwd();
-    const relativeToCwd = path.relative(cwd, normalizedTarget);
+    const cwd = <span class="cstat-no" title="statement not covered" >process.cwd();</span>
+    const relativeToCwd = <span class="cstat-no" title="statement not covered" >path.relative(cwd, normalizedTarget);</span>
     
     // 规范化相对路径
-    const relativePath = normalizePath(relativeToCwd);
+    const relativePath = <span class="cstat-no" title="statement not covered" >normalizePath(relativeToCwd);</span>
     
-    return relativePath;
+<span class="cstat-no" title="statement not covered" >    return relativePath;</span>
 }
 &nbsp;
 export function <span class="fstat-no" title="function not covered" >isSubPath(</span>parentPath: string, childPath: string): boolean {
@@ -241,7 +241,7 @@ export function <span class="fstat-no" title="function not covered" >isSubPath(<
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-01-03T10:29:48.242Z
+                at 2025-01-04T12:47:49.444Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

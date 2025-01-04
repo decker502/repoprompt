@@ -310,4 +310,134 @@ describe('FileProcessor', () => {
             expect(mockFolderHandler.processFolder).toHaveBeenCalledTimes(2); // 只应该调用两次：一次是根文件夹，一次是子文件夹
         });
     });
+
+    describe('URI Validation', () => {
+        it('should handle valid file paths', async () => {
+            const validPaths = [
+                '/test/file.txt',
+                '/test/folder/file.txt',
+                '/test/folder with spaces/file.txt'
+            ];
+
+            for (const validPath of validPaths) {
+                const uri = vscode.Uri.file(validPath);
+                const result = await fileProcessor['validateUri'](uri);
+                expect(result).toBe(true);
+            }
+        });
+
+        it('should reject invalid file paths', async () => {
+            const invalidPaths = [
+                '',
+                ' ',
+                '/test/file*.txt',
+                '/test/file?.txt',
+                '/test/file<>.txt'
+            ];
+
+            for (const invalidPath of invalidPaths) {
+                const uri = vscode.Uri.file(invalidPath);
+                const result = await fileProcessor['validateUri'](uri);
+                expect(result).toBe(false);
+            }
+        });
+
+        it('should handle Windows-style paths correctly', async () => {
+            // 模拟 Windows 环境
+            const originalPlatform = process.platform;
+            Object.defineProperty(process, 'platform', {
+                value: 'win32',
+                configurable: true
+            });
+
+            // 模拟 path.isAbsolute 方法
+            const originalIsAbsolute = path.isAbsolute;
+            path.isAbsolute = (pathString: string) => {
+                // Windows 路径以盘符开头（如 C:\）被认为是绝对路径
+                return /^[A-Za-z]:\\/.test(pathString);
+            };
+
+            try {
+                const validWindowsPaths = [
+                    'C:\\test\\file.txt',
+                    'D:\\folder\\file.txt',
+                    'C:\\Program Files\\test.txt'
+                ];
+
+                for (const validPath of validWindowsPaths) {
+                    const uri = vscode.Uri.file(validPath);
+                    const result = await fileProcessor['validateUri'](uri);
+                    expect(result).toBe(true);
+                }
+
+                const invalidWindowsPaths = [
+                    'test\\file.txt', // 相对路径
+                    '\\test\\file.txt', // 没有驱动器号
+                    'CC:\\test\\file.txt', // 无效的驱动器号
+                    'C:\\test\\file*.txt', // 包含通配符
+                    'C:\\test\\file|.txt' // 包含无效字符
+                ];
+
+                for (const invalidPath of invalidWindowsPaths) {
+                    const uri = vscode.Uri.file(invalidPath);
+                    const result = await fileProcessor['validateUri'](uri);
+                    expect(result).toBe(false);
+                }
+            } finally {
+                // 恢复原始环境
+                Object.defineProperty(process, 'platform', {
+                    value: originalPlatform,
+                    configurable: true
+                });
+                path.isAbsolute = originalIsAbsolute;
+            }
+        });
+    });
+
+    it('should process selection with prompt', async () => {
+        const mockUri = { 
+            fsPath: '/test/file.txt',
+            path: '/test/file.txt', 
+            scheme: 'file',
+            authority: '',
+            query: '',
+            fragment: ''
+        } as vscode.Uri;
+        const testPrompt = '请分析这段代码';
+        
+        // 设置 mock 返回值
+        mockFileHandler.getFileStat.mockResolvedValue({
+            type: vscode.FileType.File,
+            ctime: Date.now(),
+            mtime: Date.now(),
+            size: 100
+        });
+        mockFileHandler.processFile.mockResolvedValue({
+            name: 'file.txt',
+            path: 'file.txt',
+            content: 'test content'
+        });
+
+        const processor = new FileProcessor(
+            {
+                maxFileSize: 1024 * 1024,
+                maxTotalSize: 10 * 1024 * 1024,
+                maxDepth: 10,
+                ignorePatterns: [],
+                rootTag: 'project',
+                includeComments: true,
+                chunkSize: 1024 * 1024,
+                keepEmptyFolders: false,
+                includeEmptyFolders: false
+            },
+            mockFileHandler,
+            mockFolderHandler
+        );
+
+        const result = await processor.processSelection([mockUri], testPrompt);
+
+        expect(result.prompt).toBe(testPrompt);
+        expect(result.files.length).toBe(1);
+        expect(result.files[0].path).toBe('file.txt');
+    });
 });

@@ -1,0 +1,25 @@
+<project>
+    <prompt><![CDATA[
+        t1
+    ]]></prompt>
+    <structure>
+        <folder name="docs">
+          <file name="d1.md" path="docs/d1.md" />
+          <folder name="sub">
+            <file name="d2.md" path="docs/sub/d2.md" />
+          </folder>
+        </folder>
+    </structure>
+    <files>
+      <file name="d1.md" path="docs/d1.md">
+        <content><![CDATA[]]></content>
+      </file>
+      <file name="d2.md" path="docs/sub/d2.md">
+        <content><![CDATA[]]></content>
+      </file>
+      <file name="file2.txt" path="project/src/file2.txt">
+        <summary><![CDATA[file2 content]]></summary>
+        <content><![CDATA[file2 content]]></content>
+      </file>
+    </files>
+</project>

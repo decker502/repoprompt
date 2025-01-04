@@ -40,19 +40,47 @@ export class FolderHandler implements IFolderHandler {
         this.rootPath = rootPath;
     }
 
+    private createFileObject(file: ProjectFile, entryPath: string): ProjectFile {
+        // 创建一个全新的文件对象,避免循环引用
+        return {
+            name: file.name,
+            path: entryPath,
+            content: file.content ? String(file.content) : undefined,
+            size: Number(file.size) || 0,
+            summary: file.summary ? String(file.summary) : undefined,
+            isSelected: false,
+            type: vscode.FileType.File
+        };
+    }
+
+    private createFolderObject(name: string, path: string): ProjectFolder {
+        // 创建一个全新的文件夹对象,避免循环引用
+        return {
+            name: String(name),
+            path: String(path),
+            files: [],
+            folders: [],
+            isSelected: false,
+            isExpanded: name === 'src',
+            type: vscode.FileType.Directory
+        };
+    }
+
     public async processFolder(uri: vscode.Uri): Promise<ProjectFolder | undefined> {
         try {
             const relativePath = path.relative(this.rootPath, uri.fsPath);
-            const folder: ProjectFolder = {
-                name: path.basename(uri.fsPath),
-                path: relativePath || '.',
-                files: [],
-                folders: []
-            };
+            const folderName = path.basename(uri.fsPath);
+            
+            // 检查是否应该忽略该文件夹
+            if (await this.fileHandler.shouldIgnore(relativePath)) {
+                return undefined;
+            }
+            
+            // 创建基础文件夹结构
+            const folder = this.createFolderObject(folderName, relativePath || '.');
 
             // 检查是否为符号链接
-            const stat = await this.fileSystem.stat(uri);
-            if (stat && (stat.type & vscode.FileType.SymbolicLink)) {
+            if (await this.isSymlink(uri)) {
                 folder.truncated = true;
                 return folder;
             }
@@ -63,10 +91,11 @@ export class FolderHandler implements IFolderHandler {
                 return folder;
             }
 
-            // 处理文件和文件夹
+            // 处理文件
             for (const [name, type] of entries) {
+                // 创建新的 Uri 对象而不是修改原始对象
                 const entryUri = vscode.Uri.file(path.join(uri.fsPath, name));
-                const entryPath = path.join(relativePath || '.', name);
+                const entryPath = relativePath ? path.join(relativePath, name) : name;
 
                 if (await this.fileHandler.shouldIgnore(entryPath)) {
                     continue;
@@ -75,34 +104,30 @@ export class FolderHandler implements IFolderHandler {
                 if (type === vscode.FileType.File) {
                     const file = await this.fileHandler.processFile(entryUri);
                     if (file) {
-                        folder.files.push({
-                            ...file,
-                            path: entryPath
-                        });
-                    }
-                } else if (type === vscode.FileType.Directory) {
-                    const subFolder = await this.processFolder(entryUri);
-                    if (subFolder) {
-                        folder.folders.push(subFolder);
+                        folder.files.push(this.createFileObject(file, entryPath));
                     }
                 }
             }
 
-            // 如果文件夹为空且配置不保留空文件夹，返回 undefined
-            if (folder.files.length === 0 && folder.folders.length === 0 && !this.options.includeEmptyFolders) {
-                return undefined;
+            // 处理文件夹（不递归，让 FileProcessor 处理递归）
+            for (const [name, type] of entries) {
+                if (type === vscode.FileType.Directory) {
+                    // 创建新的 Uri 对象而不是修改原始对象
+                    const subFolderUri = vscode.Uri.file(path.join(uri.fsPath, name));
+                    const subFolderPath = relativePath ? path.join(relativePath, name) : name;
+                    
+                    if (await this.fileHandler.shouldIgnore(subFolderPath)) {
+                        continue;
+                    }
+
+                    folder.folders.push(this.createFolderObject(name, subFolderPath));
+                }
             }
 
             return folder;
         } catch (error) {
             console.error(`处理文件夹失败: ${uri.fsPath}`, error);
-            return {
-                name: path.basename(uri.fsPath),
-                path: path.relative(this.rootPath, uri.fsPath) || '.',
-                files: [],
-                folders: [],
-                truncated: true
-            };
+            return undefined;
         }
     }
 
@@ -147,10 +172,13 @@ export class FolderHandler implements IFolderHandler {
                 if (folder) {
                     // 更新子文件夹的路径
                     folder.path = path.join(path.relative(this.rootPath, uri.fsPath), name);
-                    // 保留子文件夹的文件夹结构
+                    // 保留子文件夹的文件夹结构，但避免循环引用
                     folder.folders = folder.folders.map(subFolder => ({
-                        ...subFolder,
-                        path: path.join(folder.path, subFolder.name)
+                        name: subFolder.name,
+                        path: path.join(folder.path, subFolder.name),
+                        files: subFolder.files,
+                        folders: subFolder.folders,
+                        truncated: subFolder.truncated
                     }));
                     results.push(folder);
                 }
@@ -201,12 +229,30 @@ export class FolderHandler implements IFolderHandler {
     }
 
     protected updateFolderPaths(folder: ProjectFolder, parentPath: string): void {
-        folder.path = path.join(parentPath, folder.name);
-        folder.files.forEach(file => {
-            file.path = path.join(folder.path, file.name);
-        });
-        folder.folders.forEach(subFolder => {
-            this.updateFolderPaths(subFolder, folder.path);
+        const newPath = path.join(parentPath, folder.name);
+        folder.path = newPath;
+        
+        // 更新文件路径
+        folder.files = folder.files.map(file => ({
+            name: file.name,
+            path: path.join(newPath, file.name),
+            content: file.content,
+            size: file.size,
+            summary: file.summary,
+            ignored: file.ignored
+        }));
+
+        // 更新子文件夹路径
+        folder.folders = folder.folders.map(subFolder => {
+            const updatedFolder: ProjectFolder = {
+                name: subFolder.name,
+                path: path.join(newPath, subFolder.name),
+                files: subFolder.files,
+                folders: subFolder.folders,
+                truncated: subFolder.truncated
+            };
+            this.updateFolderPaths(updatedFolder, newPath);
+            return updatedFolder;
         });
     }
 
@@ -216,7 +262,18 @@ export class FolderHandler implements IFolderHandler {
         }
         processedPaths.add(folder.path);
 
-        allFiles.push(...folder.files);
+        // 创建文件副本并添加到集合中
+        const files = folder.files.map(file => ({
+            name: file.name,
+            path: file.path,
+            content: file.content,
+            size: file.size,
+            summary: file.summary,
+            ignored: file.ignored
+        }));
+        allFiles.push(...files);
+
+        // 递归处理子文件夹
         folder.folders.forEach(subFolder => {
             this.collectFilesFromFolder(subFolder, allFiles, processedPaths);
         });

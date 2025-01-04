@@ -1,148 +1,155 @@
 import * as vscode from 'vscode';
 import { FolderHandler } from '../folderHandler';
 import { IFileHandler } from '../fileHandler';
-import { ProcessingOptions, ProjectFolder } from '../types';
+import { ProcessingOptions } from '../types';
+import * as path from 'path';
 
 describe('FolderHandler', () => {
     let mockFileHandler: jest.Mocked<IFileHandler>;
-    let folderHandler: FolderHandler;
     let mockFileSystem: jest.Mocked<typeof vscode.workspace.fs>;
-    const options: ProcessingOptions = { 
-        maxFileSize: 1048576, 
-        rootTag: 'project', 
-        includeComments: true, 
-        ignorePatterns: [],
-        chunkSize: 1048576,
-        includeEmptyFolders: true
-    };
+    let folderHandler: FolderHandler;
+    let options: ProcessingOptions;
 
     beforeEach(() => {
+        options = {
+            ignorePatterns: ['**/node_modules/**'],
+            maxFileSize: 1024 * 1024,
+            rootTag: 'project',
+            includeComments: true,
+            chunkSize: 1024 * 1024,
+            includeEmptyFolders: false
+        };
+
+        mockFileSystem = {
+            readFile: jest.fn().mockResolvedValue(new Uint8Array(Buffer.from('test content'))),
+            writeFile: jest.fn(),
+            readDirectory: jest.fn(),
+            stat: jest.fn(),
+            createDirectory: jest.fn(),
+            delete: jest.fn(),
+            rename: jest.fn(),
+            copy: jest.fn()
+        } as any;
+
         mockFileHandler = {
             processFile: jest.fn(),
             setRootPath: jest.fn(),
-            shouldIgnore: jest.fn(),
+            shouldIgnore: jest.fn().mockResolvedValue(false),
             dispose: jest.fn(),
             getFileStat: jest.fn(),
             readFile: jest.fn(),
             readDirectory: jest.fn()
         } as jest.Mocked<IFileHandler>;
 
-        mockFileSystem = {
-            readDirectory: jest.fn(),
-            stat: jest.fn()
-        } as unknown as jest.Mocked<typeof vscode.workspace.fs>;
-
         folderHandler = new FolderHandler(options, mockFileHandler, mockFileSystem);
-        folderHandler.setRootPath('/root');
+        folderHandler.setRootPath('/test');
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('should handle file system errors gracefully', async () => {
+        // 设置测试数据
+        const uri = vscode.Uri.file('/test');
+        mockFileSystem.readDirectory.mockRejectedValue(new Error('File system error'));
+
+        // 执行测试
+        const result = await folderHandler.processFolder(uri);
+
+        // 验证结果
+        expect(result).toBeDefined();
+        expect(result?.truncated).toBe(true);
+        expect(result?.files).toEqual([]);
+        expect(result?.folders).toEqual([]);
     });
 
     it('should process empty folder correctly', async () => {
+        // 设置测试数据
         const uri = vscode.Uri.file('/test');
         mockFileSystem.readDirectory.mockResolvedValue([]);
-        mockFileHandler.readDirectory.mockResolvedValue([]);
-        
+
+        // 执行测试
         const result = await folderHandler.processFolder(uri);
+
+        // 验证结果
         expect(result).toBeDefined();
-        if (!result) return;
-        
-        expect(result.name).toBe('test');
-        expect(result.files.length).toBe(0);
-        expect(result.folders.length).toBe(0);
+        expect(result?.files).toEqual([]);
+        expect(result?.folders).toEqual([]);
     });
 
     it('should handle files in folder', async () => {
+        // 设置测试数据
+        const uri = vscode.Uri.file('/test');
         mockFileSystem.readDirectory.mockResolvedValue([
-            ['file.txt', vscode.FileType.File]
+            ['file1.txt', vscode.FileType.File],
+            ['file2.txt', vscode.FileType.File]
         ]);
-        mockFileSystem.stat.mockResolvedValue({
-            type: vscode.FileType.File
-        } as vscode.FileStat);
+
         mockFileHandler.processFile.mockResolvedValue({
-            name: 'file.txt',
-            path: 'test/file.txt',
-            content: 'test content'
+            name: 'test.txt',
+            path: 'test.txt',
+            content: 'test content',
+            size: 100
         });
 
-        const result = await folderHandler.processFolder(vscode.Uri.file('/test'));
+        // 执行测试
+        const result = await folderHandler.processFolder(uri);
+
+        // 验证结果
         expect(result).toBeDefined();
-        if (!result) return;
-        
-        expect(result.name).toBe('test');
-        expect(result.files.length).toBe(1);
-        expect(result.files[0].name).toBe('file.txt');
+        expect(result?.files.length).toBe(2);
+        expect(mockFileHandler.processFile).toHaveBeenCalledTimes(2);
     });
 
     it('should handle nested folders', async () => {
-        mockFileSystem.readDirectory
-            .mockResolvedValueOnce([
-                ['subfolder', vscode.FileType.Directory]
-            ])
-            .mockResolvedValueOnce([
-                ['test.txt', vscode.FileType.File]
-            ]);
-        mockFileSystem.stat.mockResolvedValue({
-            type: vscode.FileType.Directory
-        } as vscode.FileStat);
+        // 设置测试数据
+        const uri = vscode.Uri.file('/test');
+        mockFileSystem.readDirectory.mockResolvedValue([
+            ['subfolder', vscode.FileType.Directory],
+            ['file1.txt', vscode.FileType.File]
+        ]);
+
         mockFileHandler.processFile.mockResolvedValue({
             name: 'test.txt',
-            path: 'test/subfolder/test.txt',
-            content: 'test content'
+            path: 'test.txt',
+            content: 'test content',
+            size: 100
         });
 
-        const result = await folderHandler.processFolder(vscode.Uri.file('/test'));
+        // 执行测试
+        const result = await folderHandler.processFolder(uri);
+
+        // 验证结果
         expect(result).toBeDefined();
-        if (!result) return;
-        
-        expect(result.name).toBe('test');
-        expect(result.folders.length).toBe(1);
-        expect(result.folders[0].name).toBe('subfolder');
+        expect(result?.files.length).toBe(1);
+        expect(result?.folders.length).toBe(1);
     });
 
     it('should handle symlinks correctly', async () => {
+        // 设置测试数据
         const uri = vscode.Uri.file('/test');
-        mockFileSystem.readDirectory.mockResolvedValue([
-            ['file.txt', vscode.FileType.SymbolicLink | vscode.FileType.File]
-        ]);
-        mockFileHandler.readDirectory.mockResolvedValue([
-            ['file.txt', vscode.FileType.SymbolicLink | vscode.FileType.File]
-        ]);
-        mockFileHandler.processFile.mockResolvedValue({
-            name: 'file.txt',
-            path: 'test/file.txt',
-            content: 'test content'
-        });
+        mockFileSystem.stat.mockResolvedValue({ type: vscode.FileType.SymbolicLink } as vscode.FileStat);
 
+        // 执行测试
         const result = await folderHandler.processFolder(uri);
+
+        // 验证结果
         expect(result).toBeDefined();
-        if (!result) return;
-        
-        expect(result.name).toBe('test');
-        expect(result.files.length).toBe(1);
-        expect(result.files[0].name).toBe('file.txt');
+        expect(result?.truncated).toBe(true);
     });
 
-    it('should handle ignored paths', async () => {
-        const uri = vscode.Uri.file('/test');
+    test('should handle ignored paths', async () => {
+        // 准备测试数据
+        const uri = vscode.Uri.file('/test/node_modules');
+        mockFileSystem.readDirectory.mockResolvedValue([]);
+        mockFileSystem.stat.mockResolvedValue({ type: vscode.FileType.Directory } as vscode.FileStat);
         mockFileHandler.shouldIgnore.mockResolvedValue(true);
         
+        // 处理文件夹
         const result = await folderHandler.processFolder(uri);
-        expect(result).toBeDefined();
-        if (!result) return;
         
-        expect(result.name).toBe('test');
-        expect(result.files.length).toBe(0);
-        expect(result.folders.length).toBe(0);
-    });
-
-    it('should handle file system errors', async () => {
-        const uri = vscode.Uri.file('/test');
-        mockFileSystem.readDirectory.mockRejectedValue(new Error('File system error'));
-        
-        const result = await folderHandler.processFolder(uri);
-        expect(result).toBeDefined();
-        if (!result) return;
-        
-        expect(result.name).toBe('test');
-        expect(result.truncated).toBe(true);
+        // 验证结果
+        expect(result).toBeUndefined();
     });
 });

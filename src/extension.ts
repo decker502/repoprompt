@@ -91,10 +91,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 const processor = new FileProcessor(options);
                 Logger.info(`开始处理 ${uris.length} 个文件/文件夹`);
                 Logger.debug('已选择的文件:', uris);
-                const result = await processor.processSelection(uris);
+                const result = await processor.processSelection(uris, prompt);
                 Logger.debug('处理结果:', {
                     structureCount: result.structure.length,
-                    filesCount: result.files.length
+                    filesCount: result.files.length,
+                    prompt: result.prompt
                 });
 
                 // 生成XML

@@ -9,10 +9,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onView:repoPromptFileSelector",
-    "onCommand:repoprompt.generateXml"
-  ],
   "main": "dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -102,12 +98,10 @@
     "esbuild": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --minify=false --bundle=true"
   },
   "dependencies": {
-    "minimatch": "^5.1.2"
   },
   "devDependencies": {
     "@jest/types": "^29.6.3",
     "@types/jest": "^29.5.14",
-    "@types/minimatch": "^5.1.2",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
     "@types/vscode": "^1.85.0",

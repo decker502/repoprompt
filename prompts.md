@@ -61,9 +61,7 @@ project/
 插件生成一个 `project.xml` 文件，内容如下：
 ```xml
 <project>
-  <prompt><![CDATA[
-  请帮我分析这个项目的代码结构。
-  ]]></prompt>
+  <prompt>请帮我分析这个项目的代码结构。</prompt>
   <structure>
     <folder name="project">
       <folder name="src">

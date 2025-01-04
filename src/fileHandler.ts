@@ -1,9 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import minimatch from 'minimatch';
 import { ProjectFile, ProcessingOptions } from './types';
 import { getRelativePath } from './utils/pathUtils';
-import { IgnorePatterns } from './utils/ignoreUtils';
 import { escapeCdata } from './utils/xmlUtils';
 
 export interface IFileHandler {
@@ -20,38 +18,20 @@ export class FileHandler implements IFileHandler {
     private options: ProcessingOptions;
     private rootPath: string = '';
     private readonly fileSystem: typeof vscode.workspace.fs;
-    private gitignoreWatcher: vscode.FileSystemWatcher | null = null;
     private readonly maxFileSize: number = 100 * 1024 * 1024; // 100MB
-    private ignorePatterns: IgnorePatterns | null = null;
     private fileCache: Map<string, ProjectFile> = new Map();
-    
+
     constructor(
         options: ProcessingOptions,
         fileSystem: typeof vscode.workspace.fs = vscode.workspace.fs
     ) {
         this.options = options;
         this.fileSystem = fileSystem;
-        // 在非测试环境下才设置文件监听
-        if (process.env.NODE_ENV !== 'test') {
-            this.setupGitignoreWatcher();
-        }
-    }
-
-    private setupGitignoreWatcher(): void {
-        try {
-            this.gitignoreWatcher = vscode.workspace.createFileSystemWatcher('**/.gitignore');
-            this.gitignoreWatcher.onDidChange(() => this.gitignoreCache = null);
-            this.gitignoreWatcher.onDidDelete(() => this.gitignoreCache = null);
-            this.gitignoreWatcher.onDidCreate(() => this.gitignoreCache = null);
-        } catch (error) {
-            console.warn('无法设置 .gitignore 文件监听:', error);
-        }
     }
 
     dispose(): void {
-        if (this.gitignoreWatcher) {
-            this.gitignoreWatcher.dispose();
-        }
+        // 清理缓存
+        this.fileCache.clear();
     }
 
     public setRootPath(rootPath: string): void {
@@ -65,10 +45,31 @@ export class FileHandler implements IFileHandler {
 
     public async getFileStat(uri: vscode.Uri): Promise<vscode.FileStat> {
         try {
-            return await vscode.workspace.fs.stat(uri);
+            const stat = await this.fileSystem.stat(uri);
+            if (!stat) {
+                // 如果获取不到文件状态，返回一个默认的文件状态
+                return {
+                    type: vscode.FileType.File,
+                    ctime: 0,
+                    mtime: 0,
+                    size: 0
+                };
+            }
+            // 创建一个新的对象，只包含必要的属性
+            return {
+                type: stat.type,
+                ctime: stat.ctime,
+                mtime: stat.mtime,
+                size: stat.size
+            };
         } catch (error) {
-            await this.handleFileError(uri, error);
-            throw error;
+            // 如果获取文件状态失败，返回一个默认的文件状态
+            return {
+                type: vscode.FileType.File,
+                ctime: 0,
+                mtime: 0,
+                size: 0
+            };
         }
     }
 
@@ -183,79 +184,41 @@ export class FileHandler implements IFileHandler {
         return lines.join('\n');
     }
 
-    private gitignoreCache: { patterns: string[], timestamp: number } | null = null;
-
     async shouldIgnore(relativePath: string): Promise<boolean> {
-        if (!this.ignorePatterns) {
-            const patterns = await this.loadGitignorePatterns();
-            this.ignorePatterns = new IgnorePatterns(patterns);
-        }
+        // 获取 VSCode 的工作区配置
+        const config = vscode.workspace.getConfiguration();
+        const filesExclude = config.get<{ [key: string]: boolean }>('files.exclude') || {};
+        const searchExclude = config.get<{ [key: string]: boolean }>('search.exclude') || {};
         
-        let normalizedPath = relativePath.replace(/\\/g, '/');
+        // 合并 files.exclude 和 search.exclude 的规则
+        const excludePatterns = { ...filesExclude, ...searchExclude };
         
-        // 确保路径以 ./ 开头
-        if (!normalizedPath.startsWith('./')) {
-            normalizedPath = `./${normalizedPath}`;
-        }
+        // 规范化路径
+        const normalizedPath = relativePath.replace(/\\/g, '/');
         
-        // 处理 .gitignore 模式
-        for (const pattern of this.options.ignorePatterns) {
-            if (this.matchPattern(normalizedPath, pattern)) {
-                return true;
+        // 检查是否匹配任何排除规则
+        for (const [pattern, isExcluded] of Object.entries(excludePatterns)) {
+            if (isExcluded) {
+                const globPattern = new vscode.RelativePattern(this.rootPath, pattern);
+                const matches = await vscode.workspace.findFiles(globPattern, null, 1);
+                if (matches.some(uri => uri.fsPath.includes(normalizedPath))) {
+                    return true;
+                }
             }
         }
         
-        // 处理 node_modules 等特殊路径
-        if (normalizedPath.includes('node_modules')) {
-            return true;
+        // 检查自定义的忽略规则
+        if (this.options.ignorePatterns.length > 0) {
+            for (const pattern of this.options.ignorePatterns) {
+                const globPattern = new vscode.RelativePattern(this.rootPath, pattern);
+                const matches = await vscode.workspace.findFiles(globPattern, null, 1);
+                if (matches.some(uri => uri.fsPath.includes(normalizedPath))) {
+                    return true;
+                }
+            }
         }
         
-        return this.ignorePatterns.shouldIgnore(normalizedPath);
-    }
-
-    private matchPattern(path: string, pattern: string): boolean {
-        if (pattern.startsWith('!')) {
-            return !minimatch(path, pattern.slice(1));
-        }
-        return minimatch(path, pattern);
-    }
-
-    private async loadGitignorePatterns(): Promise<string[]> {
-        try {
-            const gitignoreUri = vscode.Uri.joinPath(vscode.Uri.file(this.rootPath), '.gitignore');
-            
-            const stat = await vscode.workspace.fs.stat(gitignoreUri);
-            if (this.gitignoreCache && this.gitignoreCache.timestamp === stat.mtime) {
-                return this.gitignoreCache.patterns;
-            }
-
-            const content = await vscode.workspace.fs.readFile(gitignoreUri);
-            const patterns = content.toString()
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line && !line.startsWith('#'))
-                .map(pattern => {
-                    if (pattern.startsWith('!')) {
-                        return pattern;
-                    }
-                    if (pattern.startsWith('/')) {
-                        pattern = pattern.slice(1);
-                    }
-                    if (pattern.endsWith('/')) {
-                        pattern += '**';
-                    }
-                    return pattern;
-                });
-
-            this.gitignoreCache = {
-                patterns: [...this.options.ignorePatterns, ...patterns],
-                timestamp: stat.mtime
-            };
-
-            return this.gitignoreCache.patterns;
-        } catch (error) {
-            return this.options.ignorePatterns;
-        }
+        return false;
     }
 
     async readFile(uri: vscode.Uri): Promise<string> {
