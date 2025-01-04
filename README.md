@@ -117,7 +117,7 @@
 ## 贡献
 
 欢迎提交 issue 和 pull request：
-https://github.com/你的用户名/repoprompt
+https://github.com/decker502/repoprompt
 
 ## 许可证
 
@@ -129,7 +129,7 @@ MIT
 
 1. 克隆仓库：
 ```bash
-git clone https://github.com/你的用户名/repoprompt.git
+git clone https://github.com/decker502/repoprompt.git
 cd repoprompt
 ```
 
@@ -230,10 +230,10 @@ vsce publish [version]  # 例如：vsce publish 1.0.0
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/你的用户名/repoprompt.git"
+        "url": "https://github.com/decker502/repoprompt.git"
     },
     "bugs": {
-        "url": "https://github.com/你的用户名/repoprompt/issues"
+        "url": "https://github.com/decker502/repoprompt/issues"
     }
 }
 ```
