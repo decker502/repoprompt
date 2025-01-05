@@ -1,123 +1,57 @@
 # RepoPrompt
 
-将项目结构及文件内容转换为适用于大语言模型的 XML 格式。
+将项目文件结构和内容导出为适用于大语言模型的 XML 格式。
 
-## 安装
+## 功能特点
 
-1. **通过 VSCode 插件市场安装**：
-   - 打开 VSCode
-   - 点击左侧扩展图标或按 `Ctrl+Shift+X`
-   - 搜索 "RepoPrompt"
-   - 点击安装
-
-2. **通过 VSIX 文件安装**：
-   - 下载最新的 .vsix 文件
-   - 在 VSCode 中，选择 "从 VSIX 安装..."
-   - 选择下载的 .vsix 文件
-
-## 功能
-
-- 支持在 VSCode 资源管理器中选择文件或文件夹
-- 递归扫描项目结构，保持原始层级关系
-- 自动处理 .gitignore 规则
-- 支持大文件分块输出
-- 支持文件内容摘要生成（自动提取文件前 5 行作为摘要）
-- 支持配置忽略规则（支持 glob 模式）
-- 支持复制到剪贴板
-- 智能处理特殊情况：
-  - 自动去除重复的文件夹结构
-  - 自动移除空文件夹
-  - 正确处理同名文件和文件夹
-  - 安全处理 CDATA 内容和特殊字符
-  - 保持一致的缩进格式（2 空格缩进）
+- 支持在 VSCode 资源管理器中多选文件或文件夹
+- 递归扫描选中的文件夹，获取其完整的项目结构
+- 将项目结构和文件内容分别整合到 XML 文件中
+- 支持通过 `.vscode/settings.json` 配置文件设置默认行为
+- 自动忽略 `.gitignore` 中指定的文件和文件夹
+- 支持分块输出大型项目
+- 提供文件内容摘要功能
+- 支持将生成的 XML 内容直接复制到剪贴板
+- 提供直观的文件选择界面
+  - 支持全选和取消选择
+  - 支持单个文件/文件夹的选择状态切换
+  - 默认展开第一层目录树
+- 提供生成进度展示
+  - 显示进度条通知
+  - 实时显示当前处理的文件名
+  - 分阶段展示进度
 
 ## 使用方法
 
-1. 在资源管理器中选择文件或文件夹
-2. 右键选择 "生成项目结构 XML" 或使用快捷键 `Ctrl+Shift+X`
-3. 输入可选的提示语（支持多行文本）
-4. XML 文件将生成在配置的输出路径中
+1. 在 VSCode 中打开项目
+2. 点击左侧活动栏中的 RepoPrompt 图标
+3. 在文件选择视图中选择需要导出的文件和文件夹
+4. 点击生成 XML 按钮
+5. 输入可选的提示语
+6. 等待生成完成，XML 文件将自动保存并可选复制到剪贴板
 
-## 配置项
+## 配置选项
 
 在 `.vscode/settings.json` 中可以配置以下选项：
 
 ```json
 {
-  "repoprompt.maxFileSize": 1048576, // 最大文件大小（字节），默认 1MB
-  "repoprompt.rootTag": "project", // XML 根标签名称
-  "repoprompt.includeComments": true, // 是否包含注释内容
-  "repoprompt.ignorePatterns": [ // 要忽略的文件和文件夹模式
-    "node_modules/**",
-    ".git/**",
-    "dist/**",
-    "build/**",
-    "*.log"
-  ],
-  "repoprompt.includeContent": true, // 是否包含文件内容
-  "repoprompt.chunkSize": 1048576, // 分块大小（字节），默认 1MB
-  "repoprompt.outputPath": "${workspaceFolder}/project.xml", // 输出文件路径
-  "repoprompt.copyToClipboard": true // 是否自动复制到剪贴板
+    "repoprompt.rootTagName": "project",
+    "repoprompt.includeFilePath": true,
+    "repoprompt.recursiveScan": true,
+    "repoprompt.fileSizeThreshold": "1MB",
+    "repoprompt.copyToClipboard": true,
+    "repoprompt.ignorePatterns": [
+        "node_modules/**",
+        "dist/**",
+        "*.log"
+    ]
 }
 ```
 
-## 输出格式
+## 更新日志
 
-生成的 XML 文件包含三个主要部分：
-
-1. **提示语部分**：用户提供的初始提示语
-```xml
-<prompt><![CDATA[
-请帮我分析这个项目的代码结构。
-]]></prompt>
-```
-
-2. **项目结构部分**：展示文件和文件夹的层级关系
-```xml
-<structure>
-  <folder name="project">
-    <folder name="src">
-      <file name="file1.py" path="project/src/file1.py" />
-      <file name="file2.txt" path="project/src/file2.txt" />
-    </folder>
-    <file name="README.md" path="project/README.md" />
-  </folder>
-</structure>
-```
-
-3. **文件内容部分**：包含文件的摘要和完整内容
-```xml
-<files>
-  <file name="file1.py" path="project/src/file1.py">
-    <summary><![CDATA[
-    print("Hello, World!")
-    ]]></summary>
-    <content><![CDATA[
-    print("Hello, World!")
-    ]]></content>
-  </file>
-</files>
-```
-
-## 特殊情况处理
-
-1. **大文件处理**：
-   - 超过配置的大小阈值的文件只包含摘要，不包含完整内容
-   - 支持将大型项目拆分为多个 XML 文件，每个文件包含部分内容
-
-2. **路径处理**：
-   - 使用相对路径，避免暴露本地系统信息
-   - 自动处理路径分隔符，确保跨平台兼容
-
-3. **内容处理**：
-   - 自动处理 CDATA 标记，避免 XML 解析错误
-   - 正确处理特殊字符和空内容
-   - 保持文件内容的原始格式
-
-## 贡献
-
-欢迎提交 issue 和 pull request：
-https://github.com/decker502/repoprompt
+详见 [CHANGELOG.md](CHANGELOG.md)
 
 ## 许可证
 
