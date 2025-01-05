@@ -1,25 +1,168 @@
 <project>
-    <prompt><![CDATA[
-        t1
-    ]]></prompt>
-    <structure>
-        <folder name="docs">
-          <file name="d1.md" path="docs/d1.md" />
-          <folder name="sub">
-            <file name="d2.md" path="docs/sub/d2.md" />
-          </folder>
-        </folder>
-    </structure>
-    <files>
-      <file name="d1.md" path="docs/d1.md">
-        <content><![CDATA[]]></content>
-      </file>
-      <file name="d2.md" path="docs/sub/d2.md">
-        <content><![CDATA[]]></content>
-      </file>
-      <file name="file2.txt" path="project/src/file2.txt">
-        <summary><![CDATA[file2 content]]></summary>
-        <content><![CDATA[file2 content]]></content>
-      </file>
-    </files>
+  <prompt><![CDATA[
+    t1
+  ]]></prompt>
+  <structure>
+    <folder name="test-workspace">
+      <file name="project.xml" path="test-workspace/project.xml" />
+      <folder name="docs">
+        <file name="d1.md" path="test-workspace/docs/d1.md" />
+      </folder>
+      <folder name="project">
+        <file name="README.md" path="test-workspace/project/README.md" />
+      </folder>
+    </folder>
+  </structure>
+  <files>
+    <file name="project.xml" path="test-workspace/project.xml">
+      <summary><![CDATA[<project>
+  <prompt>
+    t1
+  ]]&gt;</prompt>
+  <files>]]></summary>
+      <content><![CDATA[<project>
+  <prompt>
+    t1
+  </prompt>
+  <files>
+    <file name="project.xml" path="project.xml">
+      <summary><project>
+  <structure>
+    <folder name="test-workspace">
+      <file name="project.xml" path="test-workspace/project.xml" />
+      <folder name="docs"></summary>
+      <content><project>
+  <structure>
+    <folder name="test-workspace">
+      <file name="project.xml" path="test-workspace/project.xml" />
+      <folder name="docs">
+        <file name="d1.md" path="test-workspace/docs/d1.md" />
+      </folder>
+      <folder name="project">
+        <file name="README.md" path="test-workspace/project/README.md" />
+      </folder>
+    </folder>
+  </structure>
+  <files>
+    <file name="project.xml" path="test-workspace/project.xml">
+      <summary><project>
+  <structure>
+    <folder name="test-workspace">
+      <file name="project.xml" path="test-workspace/project.xml" />
+      <folder name="docs"></summary>
+      <content><project>
+  <structure>
+    <folder name="test-workspace">
+      <file name="project.xml" path="test-workspace/project.xml" />
+      <folder name="docs">
+        <file name="d1.md" path="test-workspace/docs/d1.md" />
+      </folder>
+      <folder name="project">
+        <file name="README.md" path="test-workspace/project/README.md" />
+      </folder>
+    </folder>
+  </structure>
+  <files>
+    <file name="project.xml" path="test-workspace/project.xml">
+      <summary><project>
+  <prompt>
+    t1
+  ]]&gt;</prompt>
+  <structure></summary>
+      <content><project>
+  <prompt>
+    t1
+  </prompt>
+  <structure>
+    <folder name="docs">
+      <file name="d1.md" path="docs/d1.md" />
+      <folder name="sub">
+        <file name="d2.md" path="docs/sub/d2.md" />
+      </folder>
+    </folder>
+  </structure>
+  <files>
+    <file name="d1.md" path="docs/d1.md">
+      <content></content>
+    </file>
+    <file name="d2.md" path="docs/sub/d2.md">
+      <content></content>
+    </file>
+  </files>
+</project>
+</content>
+    </file>
+    <file name="d1.md" path="test-workspace/docs/d1.md">
+      <content></content>
+    </file>
+    <file name="d2.md" path="test-workspace/docs/sub/d2.md">
+      <content></content>
+    </file>
+    <file name="README.md" path="test-workspace/project/README.md">
+      <summary>test readme</summary>
+      <content># test readme
+
+test readme</content>
+    </file>
+    <file name="file1.py" path="test-workspace/project/src/file1.py">
+      <summary>print("Hello, World!")</summary>
+      <content>print("Hello, World!")</content>
+    </file>
+    <file name="file2.txt" path="test-workspace/project/src/file2.txt">
+      <summary>file2 content</summary>
+      <content>file2 content</content>
+    </file>
+  </files>
+</project>
+</content>
+    </file>
+    <file name="d1.md" path="test-workspace/docs/d1.md">
+      <content></content>
+    </file>
+    <file name="d2.md" path="test-workspace/docs/sub/d2.md">
+      <content></content>
+    </file>
+    <file name="README.md" path="test-workspace/project/README.md">
+      <summary>test readme</summary>
+      <content># test readme
+
+test readme</content>
+    </file>
+    <file name="file1.py" path="test-workspace/project/src/file1.py">
+      <summary>print("Hello, World!")</summary>
+      <content>print("Hello, World!")</content>
+    </file>
+    <file name="file2.txt" path="test-workspace/project/src/file2.txt">
+      <summary>file2 content</summary>
+      <content>file2 content</content>
+    </file>
+  </files>
+</project>
+</content>
+    </file>
+  </files>
+</project>
+]]></content>
+    </file>
+    <file name="d1.md" path="test-workspace/docs/d1.md">
+      <content><![CDATA[]]></content>
+    </file>
+    <file name="d2.md" path="test-workspace/docs/sub/d2.md">
+      <content><![CDATA[]]></content>
+    </file>
+    <file name="README.md" path="test-workspace/project/README.md">
+      <summary><![CDATA[test readme]]></summary>
+      <content><![CDATA[# test readme
+
+test readme]]></content>
+    </file>
+    <file name="file1.py" path="test-workspace/project/src/file1.py">
+      <summary><![CDATA[print("Hello, World!")]]></summary>
+      <content><![CDATA[print("Hello, World!")]]></content>
+    </file>
+    <file name="file2.txt" path="test-workspace/project/src/file2.txt">
+      <summary><![CDATA[file2 content]]></summary>
+      <content><![CDATA[file2 content]]></content>
+    </file>
+  </files>
 </project>

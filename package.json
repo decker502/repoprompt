@@ -46,22 +46,22 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "repoprompt.confirmFileSelection",
-        "title": "确认选择",
+        "command": "repoprompt.selectAll",
+        "title": "全选",
         "category": "RepoPrompt",
-        "icon": "$(check)"
+        "icon": "$(check-all)"
       },
       {
         "command": "repoprompt.cancelFileSelection",
         "title": "取消选择",
         "category": "RepoPrompt",
-        "icon": "$(x)"
+        "icon": "$(close)"
       },
       {
         "command": "repoprompt.toggleSelection",
         "title": "切换选择状态",
         "category": "RepoPrompt",
-        "icon": "$(check-all)"
+        "icon": "$(add)"
       }
     ],
     "menus": {
@@ -73,14 +73,24 @@
       ],
       "view/title": [
         {
-          "command": "repoprompt.refreshSelection",
+          "command": "repoprompt.selectAll",
           "when": "view == repoPromptFileSelector",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "repoprompt.cancelFileSelection",
+          "when": "view == repoPromptFileSelector",
+          "group": "navigation@2"
+        },
+        {
+          "command": "repoprompt.generateXml",
+          "when": "view == repoPromptFileSelector",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
-          "command": "repoprompt.generateXml",
+          "command": "repoprompt.toggleSelection",
           "when": "view == repoPromptFileSelector",
           "group": "inline"
         }

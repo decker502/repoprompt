@@ -22,21 +22,6 @@ export async function activate(context: vscode.ExtensionContext) {
         fileSelector = new FileSelector(context);
         Logger.debug('文件选择器已创建');
 
-        // 注册文件选择相关的命令
-        const confirmFileSelectionCommand = vscode.commands.registerCommand('repoprompt.confirmFileSelection', () => {
-            Logger.debug('触发确认选择命令');
-            if (fileSelector) {
-                fileSelector.handleConfirm();
-            }
-        });
-
-        const cancelFileSelectionCommand = vscode.commands.registerCommand('repoprompt.cancelFileSelection', () => {
-            Logger.debug('触发取消选择命令');
-            if (fileSelector) {
-                fileSelector.handleCancel();
-            }
-        });
-
         // 注册刷新命令
         const refreshCommand = vscode.commands.registerCommand('repoprompt.refreshSelection', () => {
             Logger.debug('执行刷新命令');
@@ -76,6 +61,9 @@ export async function activate(context: vscode.ExtensionContext) {
                     uris = selectedUris;
                     Logger.debug('使用已选择的文件:', uris);
                 }
+
+                // 调用 handleConfirm 来处理选择确认
+                fileSelector.handleConfirm();
 
                 // 获取用户输入的提示语
                 const prompt = await vscode.window.showInputBox({
@@ -135,9 +123,7 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             refreshCommand,
             generateXmlCommand,
-            toggleSelectionCommand,
-            confirmFileSelectionCommand,
-            cancelFileSelectionCommand
+            toggleSelectionCommand
         );
 
         Logger.info('命令注册完成');

@@ -15,8 +15,6 @@ export class FileSelector {
     private treeDataProvider: FileSelectorProvider;
     private treeView: vscode.TreeView<FileItem>;
     private selectedItems: Set<string> = new Set();
-    private confirmButton: vscode.StatusBarItem;
-    private cancelButton: vscode.StatusBarItem;
     private resolveCallback: ((value: vscode.Uri[]) => void) | null = null;
     private isSelecting: boolean = false;
 
@@ -31,23 +29,10 @@ export class FileSelector {
         // 注册选择变化事件
         this.treeView.onDidChangeSelection(e => this.onSelectionChanged(e));
 
-        // 创建状态栏按钮
-        this.confirmButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-        this.confirmButton.text = "$(check) 确认选择";
-        this.confirmButton.tooltip = "确认当前的文件选择";
-        this.confirmButton.command = 'repoprompt.confirmFileSelection';
-        Logger.debug('创建确认按钮');
-
-        this.cancelButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-        this.cancelButton.text = "$(x) 取消选择";
-        this.cancelButton.tooltip = "取消文件选择";
-        this.cancelButton.command = 'repoprompt.cancelFileSelection';
-        Logger.debug('创建取消按钮');
-
-        // 将按钮添加到context.subscriptions
+        // 注册命令
         context.subscriptions.push(
-            this.confirmButton,
-            this.cancelButton
+            vscode.commands.registerCommand('repoprompt.selectAll', () => this.handleSelectAll()),
+            vscode.commands.registerCommand('repoprompt.cancelFileSelection', () => this.handleCancel())
         );
     }
 
@@ -55,23 +40,12 @@ export class FileSelector {
     public startSelection(): void {
         Logger.debug('开始选择流程');
         this.isSelecting = true;
-        this.showButtons();
     }
 
     // 结束选择流程
     private endSelection(): void {
         Logger.debug('结束选择流程');
         this.isSelecting = false;
-        this.hideButtons();
-    }
-
-    public handleConfirm() {
-        Logger.debug('处理确认选择');
-        this.endSelection();
-        const selectedUris = Array.from(this.selectedItems).map(path => vscode.Uri.file(path));
-        Logger.debug('确认选择，已选择的文件数量:', selectedUris.length);
-        Logger.debug('已选择的文件路径:', selectedUris.map(uri => uri.fsPath));
-        vscode.commands.executeCommand('repoprompt.generateXml');
     }
 
     public handleCancel() {
@@ -79,29 +53,6 @@ export class FileSelector {
         this.selectedItems.clear();
         this.endSelection();
         this.treeDataProvider.refresh();
-    }
-
-    private hideButtons() {
-        Logger.debug('隐藏确认和取消按钮');
-        try {
-            this.confirmButton.hide();
-            this.cancelButton.hide();
-        } catch (error) {
-            Logger.error('隐藏按钮时出错:', error);
-        }
-    }
-
-    public showButtons(): void {
-        if (!this.isSelecting) {
-            return;
-        }
-        try {
-            this.confirmButton.show();
-            this.cancelButton.show();
-            Logger.debug('显示确认和取消按钮');
-        } catch (error) {
-            Logger.error('显示按钮时出错:', error);
-        }
     }
 
     // 切换选择状态
@@ -118,7 +69,6 @@ export class FileSelector {
         }
         Logger.debug('当前选择的文件数量:', this.selectedItems.size);
         this.treeDataProvider.refresh();
-        this.showButtons();
     }
 
     // 获取已选择的文件
@@ -132,15 +82,6 @@ export class FileSelector {
         this.selectedItems.clear();
         await this.refresh();
         
-        // 显示按钮
-        try {
-            this.confirmButton.show();
-            this.cancelButton.show();
-            Logger.debug('显示确认和取消按钮');
-        } catch (error) {
-            Logger.error('显示按钮时出错:', error);
-        }
-        
         // 获取根节点并展开
         const root = this.treeDataProvider.getRoot();
         if (root) {
@@ -153,16 +94,6 @@ export class FileSelector {
         
         return new Promise((resolve) => {
             this.resolveCallback = resolve;
-            // 确保按钮在Promise创建后仍然可见
-            setImmediate(() => {
-                try {
-                    this.confirmButton.show();
-                    this.cancelButton.show();
-                    Logger.debug('再次确认按钮显示状态');
-                } catch (error) {
-                    Logger.error('再次显示按钮时出错:', error);
-                }
-            });
         });
     }
 
@@ -176,17 +107,9 @@ export class FileSelector {
         event.selection.forEach(item => {
             this.toggleSelection(item);
         });
-        // 在选择变化后显示按钮
-        try {
-            this.confirmButton.show();
-            this.cancelButton.show();
-            Logger.debug('显示确认和取消按钮（在选择变化后）');
-        } catch (error) {
-            Logger.error('显示按钮时出错:', error);
-        }
     }
 
-    private toggleDirectorySelection(item: FileItem, selected: boolean) {
+    private async toggleDirectorySelection(item: FileItem, selected: boolean) {
         const itemPath = item.uri.fsPath;
         Logger.debug(`切换目录选择状态: ${itemPath}, selected: ${selected}`);
         if (selected) {
@@ -195,11 +118,16 @@ export class FileSelector {
             this.selectedItems.delete(itemPath);
         }
 
+        // 确保子项已加载
+        if (!item.children) {
+            item.children = await this.treeDataProvider.getChildren(item);
+        }
+
         // 递归处理子项
         if (item.children) {
-            item.children.forEach(child => {
+            for (const child of item.children) {
                 if (child.type === vscode.FileType.Directory) {
-                    this.toggleDirectorySelection(child, selected);
+                    await this.toggleDirectorySelection(child, selected);
                 } else {
                     if (selected) {
                         this.selectedItems.add(child.uri.fsPath);
@@ -207,7 +135,7 @@ export class FileSelector {
                         this.selectedItems.delete(child.uri.fsPath);
                     }
                 }
-            });
+            }
         }
     }
 
@@ -218,6 +146,49 @@ export class FileSelector {
         } else {
             this.selectedItems.add(itemPath);
         }
+    }
+
+    // 处理全选
+    private async handleSelectAll() {
+        Logger.debug('执行全选操作');
+        if (!this.isSelecting) {
+            this.startSelection();
+        }
+
+        const root = this.treeDataProvider.getRoot();
+        if (root) {
+            await this.selectAllRecursively(root);
+            this.treeDataProvider.refresh();
+        }
+    }
+
+    // 递归选择所有项目
+    private async selectAllRecursively(item: FileItem) {
+        // 选择当前项
+        this.selectedItems.add(item.uri.fsPath);
+
+        // 如果是文件夹，递归处理子项
+        if (item.type === vscode.FileType.Directory) {
+            // 确保子项已加载
+            if (!item.children) {
+                item.children = await this.treeDataProvider.getChildren(item);
+            }
+            for (const child of item.children) {
+                await this.selectAllRecursively(child);
+            }
+        }
+    }
+
+    public handleConfirm() {
+        Logger.debug('处理确认选择');
+        if (this.resolveCallback) {
+            const selectedUris = Array.from(this.selectedItems).map(path => vscode.Uri.file(path));
+            Logger.debug('确认选择，已选择的文件数量:', selectedUris.length);
+            Logger.debug('已选择的文件路径:', selectedUris.map(uri => uri.fsPath));
+            this.resolveCallback(selectedUris);
+            this.resolveCallback = null;
+        }
+        this.endSelection();
     }
 }
 
@@ -258,10 +229,14 @@ class FileSelectorProvider implements vscode.TreeDataProvider<FileItem> {
 
     getTreeItem(element: FileItem): vscode.TreeItem {
         const isSelected = this.selectedItems.has(element.uri.fsPath);
+        const isRoot = !element.parent; // 判断是否为根节点
+
         const treeItem = new vscode.TreeItem(
             element.name,
             element.type === vscode.FileType.Directory
-                ? vscode.TreeItemCollapsibleState.Expanded
+                ? isRoot 
+                    ? vscode.TreeItemCollapsibleState.Expanded  // 根目录默认展开
+                    : vscode.TreeItemCollapsibleState.Collapsed // 其他目录默认折叠
                 : vscode.TreeItemCollapsibleState.None
         );
 
