@@ -72,39 +72,54 @@ export async function activate(context: vscode.ExtensionContext) {
                 });
                 Logger.debug('用户输入的提示语:', prompt);
 
-                // 处理文件
-                const options = Config.getProcessingOptions();
-                Logger.debug('处理选项:', options);
-                
-                const processor = new FileProcessor(options);
-                Logger.info(`开始处理 ${uris.length} 个文件/文件夹`);
-                Logger.debug('已选择的文件:', uris);
-                const result = await processor.processSelection(uris, prompt);
-                Logger.debug('处理结果:', {
-                    structureCount: result.structure.length,
-                    filesCount: result.files.length,
-                    prompt: result.prompt
+                // 显示进度条
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: "正在生成 XML 文件",
+                    cancellable: false
+                }, async (progress) => {
+                    // 处理文件
+                    progress.report({ message: "正在处理文件...", increment: 20 });
+                    const options = Config.getProcessingOptions();
+                    Logger.debug('处理选项:', options);
+                    
+                    const processor = new FileProcessor(options);
+                    Logger.info(`开始处理 ${uris.length} 个文件/文件夹`);
+                    Logger.debug('已选择的文件:', uris);
+                    const result = await processor.processSelection(uris, prompt, progress);
+                    Logger.debug('处理结果:', {
+                        structureCount: result.structure.length,
+                        filesCount: result.files.length,
+                        prompt: result.prompt
+                    });
+
+                    // 生成XML
+                    progress.report({ message: "正在生成 XML...", increment: 40 });
+                    const xmlContent = XmlGenerator.generateXml(result);
+                    const outputPath = getOutputPath(0, 1);
+                    Logger.debug('输出路径:', outputPath);
+                    
+                    // 保存文件
+                    progress.report({ message: "正在保存文件...", increment: 30 });
+                    await saveXmlFile(outputPath, xmlContent);
+                    Logger.info(`已保存 XML 文件到: ${outputPath}`);
+
+                    // 复制到剪贴板
+                    if (Config.shouldCopyToClipboard()) {
+                        progress.report({ message: "正在复制到剪贴板...", increment: 10 });
+                        await vscode.env.clipboard.writeText(xmlContent);
+                        Logger.info('已复制 XML 内容到剪贴板');
+                    }
+
+                    // 显示完成信息
+                    vscode.window.showInformationMessage(
+                        `已处理 ${result.files.length} 个文件`
+                    );
+
+                    if (Config.shouldCopyToClipboard()) {
+                        vscode.window.showInformationMessage('XML内容已复制到剪贴板');
+                    }
                 });
-
-                // 生成XML
-                const xmlContent = XmlGenerator.generateXml(result);
-                const outputPath = getOutputPath(0, 1);
-                Logger.debug('输出路径:', outputPath);
-                
-                await saveXmlFile(outputPath, xmlContent);
-                Logger.info(`已保存 XML 文件到: ${outputPath}`);
-
-                // 显示完成信息
-                vscode.window.showInformationMessage(
-                    `已处理 ${result.files.length} 个文件`
-                );
-
-                // 复制到剪贴板
-                if (Config.shouldCopyToClipboard()) {
-                    await vscode.env.clipboard.writeText(xmlContent);
-                    Logger.info('已复制 XML 内容到剪贴板');
-                    vscode.window.showInformationMessage('XML内容已复制到剪贴板');
-                }
 
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);

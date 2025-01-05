@@ -20,6 +20,10 @@ export interface ProcessingResult {
     xmlContent?: string;
 }
 
+export interface ProcessingProgress {
+    report: (value: { message?: string; increment?: number }) => void;
+}
+
 export class ProcessingResultBuilder {
     private files: ProjectFile[] = [];
     private structure: ProjectFolder[] = [];
@@ -748,7 +752,7 @@ export class FileProcessor {
         }
     }
 
-    public async processSelection(items: any[], prompt?: string): Promise<ProcessingResult> {
+    public async processSelection(items: any[], prompt?: string, progress?: ProcessingProgress): Promise<ProcessingResult> {
         try {
             // 从树节点对象中提取 URI
             const uris = items.map(item => {
@@ -760,19 +764,6 @@ export class FileProcessor {
                 console.warn('Invalid item:', item);
                 return null;
             }).filter(Boolean) as vscode.Uri[];
-
-            // 添加详细的日志记录
-            console.log('processSelection: Extracted URIs:', uris.map(uri => {
-                if (!uri) return null;
-                return {
-                    fsPath: uri.fsPath,
-                    path: uri.path,
-                    scheme: uri.scheme,
-                    authority: uri.authority,
-                    query: uri.query,
-                    fragment: uri.fragment
-                };
-            }));
 
             // 验证输入的 URIs
             if (!uris || uris.length === 0) {
@@ -801,7 +792,6 @@ export class FileProcessor {
             // 如果有些 URI 无效，显示警告
             if (validUris.length < uris.length) {
                 this.showWarning(`已跳过 ${uris.length - validUris.length} 个无效的文件路径。`);
-                console.warn('Skipped invalid URIs:', uris.filter(uri => !this.validateUri(uri)).map(uri => uri?.fsPath || 'undefined'));
             }
 
             // 计算根路径
@@ -814,6 +804,9 @@ export class FileProcessor {
             const processedPaths = new Set<string>();
 
             // 先处理文件夹
+            let processedCount = 0;
+            const totalCount = validUris.length;
+            
             for (const uri of validUris) {
                 try {
                     const stat = await this.fileHandler.getFileStat(uri);
@@ -833,6 +826,15 @@ export class FileProcessor {
                             rootFolders.set(folderKey, cleanFolder);
                             this.collectAllFiles(cleanFolder, allFiles);
                         }
+                    }
+                    
+                    processedCount++;
+                    if (progress) {
+                        const percent = Math.round((processedCount / totalCount) * 100);
+                        progress.report({ 
+                            message: `正在处理: ${path.basename(uri.fsPath)}`,
+                            increment: percent / totalCount
+                        });
                     }
                 } catch (error) {
                     console.warn(`跳过处理文件夹 ${uri.fsPath}:`, error);
@@ -867,6 +869,15 @@ export class FileProcessor {
                                 this.addFileToParentFolder(normalizedFile, Array.from(rootFolders.values()));
                             }
                         }
+                    }
+                    
+                    processedCount++;
+                    if (progress) {
+                        const percent = Math.round((processedCount / totalCount) * 100);
+                        progress.report({ 
+                            message: `正在处理: ${path.basename(uri.fsPath)}`,
+                            increment: percent / totalCount
+                        });
                     }
                 } catch (error) {
                     console.warn(`跳过处理文件 ${uri.fsPath}:`, error);
